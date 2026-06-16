@@ -520,6 +520,38 @@
   body.dark .m3-cell{background:#241720;}
   .m3-cell:hover{background:#ffe8f3;}
   .m3-cell.sel{outline:3px solid #ff5ea8;transform:scale(1.1);background:#ffd6ec;}
+
+  /* ---------- 轉蛋抽小卡 ---------- */
+  .gacha-machine{text-align:center;margin-bottom:16px;}
+  .gacha-top{font-size:3.5rem;margin-bottom:8px;}
+  .gacha-btn{font-size:1.2rem;padding:14px 36px;}
+  .gacha-reveal{text-align:center;margin:18px 0;animation:gachaPop .4s ease-out;}
+  @keyframes gachaPop{from{transform:scale(.5);opacity:0;}to{transform:scale(1);opacity:1;}}
+  .gacha-card-big{
+    width:180px;margin:0 auto;border-radius:16px;overflow:hidden;
+    box-shadow:var(--shadow);border:4px solid #ccc;
+  }
+  .gacha-card-big img{width:100%;aspect-ratio:1;object-fit:cover;display:block;}
+  .gacha-card-label{padding:8px;font-weight:800;background:var(--card);}
+  .gacha-got{font-weight:900;font-size:1.1rem;margin-top:10px;color:var(--accent-2);}
+  .gacha-book{
+    display:grid;grid-template-columns:repeat(4,1fr);gap:8px;max-width:380px;margin:0 auto;
+  }
+  .gacha-slot{
+    aspect-ratio:1;border-radius:10px;overflow:hidden;position:relative;
+    border:3px solid #ddd;background:#f0eafa;
+    display:flex;align-items:center;justify-content:center;
+  }
+  body.dark .gacha-slot{background:#241d36;}
+  .gacha-slot img{width:100%;height:100%;object-fit:cover;}
+  .gacha-slot.locked .gacha-q{font-size:1.6rem;color:#bbb;font-weight:900;}
+  .gacha-rar{position:absolute;top:2px;right:4px;font-size:.9rem;}
+  .gacha-slot.justgot{animation:gachaFlash .8s;}
+  @keyframes gachaFlash{0%,100%{transform:scale(1);}50%{transform:scale(1.15);}}
+  /* 稀有度外框顏色 */
+  .rar-n.gacha-slot.owned,.gacha-card-big.rar-n{border-color:#b0b0b0;}
+  .rar-r.gacha-slot.owned,.gacha-card-big.rar-r{border-color:#5ea8ff;box-shadow:0 0 10px rgba(94,168,255,.5);}
+  .rar-sr.gacha-slot.owned,.gacha-card-big.rar-sr{border-color:#ffc94d;box-shadow:0 0 14px rgba(255,201,77,.7);}
   .num-input{
     display:block;width:100%;max-width:420px;margin:0 auto;text-align:center;
     font-family:"Baloo 2",sans-serif;font-size:2rem;letter-spacing:.12em;
@@ -809,6 +841,10 @@ window.FIREBASE_CONFIG = {
         <span class="game-pick-emoji">🍬</span>
         <span><b>甜點三消</b><br><small>交換甜點,三顆連線就消除</small></span>
       </button>
+      <button class="game-pick" data-game="gacha">
+        <span class="game-pick-emoji">🎰</span>
+        <span><b>轉蛋抽小卡</b><br><small>轉扭蛋,收集偶像小卡</small></span>
+      </button>
     </div>
 
     <!-- 猜猜看遊戲 -->
@@ -909,6 +945,17 @@ window.FIREBASE_CONFIG = {
         <button class="ghost-btn" id="match3Back">← 選遊戲</button>
       </div>
       <div id="match3Area"></div>
+    </div>
+
+    <!-- 轉蛋抽小卡遊戲 -->
+    <div id="gachaWrap" style="display:none">
+      <div class="game-head">
+        <div class="game-info">
+          <span>收集 <b id="gachaCount">0</b>/<b id="gachaTotal">0</b></span>
+        </div>
+        <button class="ghost-btn" id="gachaBack">← 選遊戲</button>
+      </div>
+      <div id="gachaArea"></div>
     </div>
   </section>
 
@@ -1807,6 +1854,7 @@ function showGameMenu() {
   $("blockWrap").style.display = "none";
   $("g2048Wrap").style.display = "none";
   $("match3Wrap").style.display = "none";
+  $("gachaWrap").style.display = "none";
   if (memoryState && memoryState.timer) clearInterval(memoryState.timer);
   if (guessGame && guessGame.timer) clearInterval(guessGame.timer);
   if (numberState && numberState.timer) clearTimeout(numberState.timer);
@@ -1823,7 +1871,8 @@ document.querySelectorAll("[data-game]").forEach(b => b.onclick = () => {
   else if (g === "number") { $("numberWrap").style.display = ""; setupNumber(); }
   else if (g === "block") { $("blockWrap").style.display = ""; setupBlock(); }
   else if (g === "g2048") { $("g2048Wrap").style.display = ""; setup2048(); }
-  else { $("match3Wrap").style.display = ""; setupMatch3(); }
+  else if (g === "match3") { $("match3Wrap").style.display = ""; setupMatch3(); }
+  else { $("gachaWrap").style.display = ""; setupGacha(); }
 });
 $("guessBack").onclick = showGameMenu;
 $("memoryBack").onclick = showGameMenu;
@@ -1833,6 +1882,7 @@ $("numberBack").onclick = showGameMenu;
 $("blockBack").onclick = showGameMenu;
 $("g2048Back").onclick = showGameMenu;
 $("match3Back").onclick = showGameMenu;
+$("gachaBack").onclick = showGameMenu;
 
 /* ================== 猜照片遊戲 🔍❤️ ================== */
 let guessGame = null;
@@ -3110,6 +3160,96 @@ function checkMatch3Over() {
   }
 }
 
+/* ================== 轉蛋抽小卡 🎰 ================== */
+const RARITIES = [
+  { key: "n",  name: "普通", icon: "⚪", rate: 0.70, cls: "rar-n" },
+  { key: "r",  name: "閃卡", icon: "✨", rate: 0.25, cls: "rar-r" },
+  { key: "sr", name: "超稀有", icon: "🌟", rate: 0.05, cls: "rar-sr" }
+];
+
+// 所有可能的小卡 = 每張照片 × 每種稀有度
+function allCards() {
+  const cards = [];
+  idols.forEach(idol => {
+    (idol.gallery || []).forEach((src, pi) => {
+      RARITIES.forEach(rar => {
+        cards.push({ id: `${idol.id}_${pi}_${rar.key}`, src, name: idol.name, rar });
+      });
+    });
+  });
+  return cards;
+}
+
+function setupGacha() {
+  const cards = allCards();
+  if (cards.length === 0) {
+    $("gachaArea").innerHTML = `<div class="empty">還沒有照片可以做小卡~<br>去偶像的「📷 管理照片」加幾張吧 🎰</div>`;
+    $("gachaCount").textContent = "0"; $("gachaTotal").textContent = "0";
+    return;
+  }
+  drawGacha();
+}
+
+function drawGacha(justGot) {
+  const cards = allCards();
+  const ownedCount = cards.filter(c => gachaOwned[c.id]).length;
+  $("gachaCount").textContent = ownedCount;
+  $("gachaTotal").textContent = cards.length;
+
+  const area = $("gachaArea");
+  area.innerHTML = `
+    <div class="gacha-machine">
+      <div class="gacha-top">🎰</div>
+      <button class="primary-btn gacha-btn" id="gachaRoll">轉一下!✨</button>
+    </div>
+    <div id="gachaResult"></div>
+    <div class="bd-section-title" style="margin-top:20px">收藏冊 📔 (${ownedCount}/${cards.length})</div>
+    <div class="gacha-book" id="gachaBook"></div>`;
+
+  $("gachaRoll").onclick = rollGacha;
+
+  // 收藏冊:抽到的點亮,沒抽到的是問號
+  const book = $("gachaBook");
+  cards.forEach(card => {
+    const owned = gachaOwned[card.id];
+    const cell = document.createElement("div");
+    cell.className = "gacha-slot " + card.rar.cls + (owned ? " owned" : " locked") + (justGot === card.id ? " justgot" : "");
+    if (owned) {
+      cell.innerHTML = `<img src="${esc(card.src)}" alt=""><span class="gacha-rar">${card.rar.icon}</span>`;
+    } else {
+      cell.innerHTML = `<span class="gacha-q">?</span>`;
+    }
+    book.appendChild(cell);
+  });
+}
+
+function rollGacha() {
+  const cards = allCards();
+  // 先決定稀有度(依機率)
+  const rnd = Math.random();
+  let acc = 0, chosenRar = RARITIES[0];
+  for (const rar of RARITIES) { acc += rar.rate; if (rnd <= acc) { chosenRar = rar; break; } }
+  // 在這個稀有度裡,隨機挑一張照片
+  const pool = cards.filter(c => c.rar.key === chosenRar.key);
+  const card = pool[Math.floor(Math.random() * pool.length)];
+
+  const isNew = !gachaOwned[card.id];
+  gachaOwned[card.id] = true;
+  // 存進圖書館
+  setDoc(doc(db, "users", uid, "settings", "prefs"), { gachaOwned }, { merge: true });
+
+  // 先重畫整頁(收藏冊那格會點亮+閃一下)
+  drawGacha(card.id);
+  // 再把揭曉結果放進結果區
+  $("gachaResult").innerHTML = `<div class="gacha-reveal">
+    <div class="gacha-card-big ${card.rar.cls}">
+      <img src="${esc(card.src)}" alt="">
+      <div class="gacha-card-label">${card.rar.icon} ${card.rar.name}</div>
+    </div>
+    <div class="gacha-got">${isNew ? "🎉 抽到新小卡!" : "又抽到一張~"} ${esc(card.name)}</div>
+  </div>`;
+}
+
 /* ================== 里程碑慶祝 🎉 ================== */
 let celebrateQueue = [];
 
@@ -3196,6 +3336,7 @@ function stopConfetti() {
 let articlePw = "";          // 目前的文章密碼(空字串 = 沒鎖)
 let badgeThresholds = { bronze: 100, silver: 300, gold: 500 }; // 徽章字數標準(預設)
 let bestStreak = 0; // 史上最高連勝
+let gachaOwned = {}; // 已收集的小卡 {照片id_稀有度: true}
 let bgColor = "", bgImage = ""; // 背景顏色 / 圖片
 
 function listenSettings() {
@@ -3221,6 +3362,7 @@ function listenSettings() {
     applyBackground();
     buildBgColorRow();
     bestStreak = data.bestStreak || 0; // 最高連勝
+    gachaOwned = data.gachaOwned || {}; // 小卡收藏
     rerenderActiveList(); // 標準改了,文章徽章跟著更新
   });
 }
