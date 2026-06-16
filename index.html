@@ -535,6 +535,27 @@
   }
   .gacha-pick-title{font-weight:900;font-size:1.05rem;margin-bottom:12px;}
   .gacha-pick-btns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;}
+
+  /* ---------- 每日幸運籤 ---------- */
+  .fortune-intro{text-align:center;padding:30px 0;}
+  .fortune-cup{font-size:4rem;margin-bottom:14px;}
+  .fortune-tip{color:var(--ink-soft);font-weight:700;margin-bottom:20px;line-height:1.6;}
+  .fortune-draw-btn{font-size:1.2rem;padding:16px 40px;}
+  .fortune-card{
+    max-width:340px;margin:10px auto;background:var(--card);
+    border:4px solid #ffb3d1;border-radius:22px;box-shadow:var(--shadow);
+    padding:26px 22px;text-align:center;animation:gachaPop .4s ease-out;
+  }
+  .fortune-head{font-size:1.3rem;font-weight:900;color:var(--accent-2);margin-bottom:18px;}
+  .fortune-name{font-size:1.1rem;line-height:1.8;margin-bottom:16px;}
+  .fortune-name b{font-size:1.5rem;color:var(--ink);}
+  .fortune-stars{font-size:1.4rem;line-height:1.8;margin-bottom:16px;color:var(--ink-soft);font-weight:700;}
+  .fortune-msg{
+    background:#fff4f9;border-radius:14px;padding:16px;font-weight:700;
+    color:var(--ink);line-height:1.6;
+  }
+  body.dark .fortune-msg{background:#2e2236;}
+  .fortune-foot{text-align:center;color:var(--ink-soft);font-size:.85rem;margin-top:14px;}
   .gacha-machine{text-align:center;margin-bottom:16px;}
   .gacha-top{font-size:3.5rem;margin-bottom:8px;}
   .gacha-btn{font-size:1.2rem;padding:14px 36px;}
@@ -858,6 +879,10 @@ window.FIREBASE_CONFIG = {
         <span class="game-pick-emoji">🎰</span>
         <span><b>轉蛋抽小卡</b><br><small>轉扭蛋,收集偶像小卡</small></span>
       </button>
+      <button class="game-pick" data-game="fortune">
+        <span class="game-pick-emoji">🔮</span>
+        <span><b>每日幸運籤</b><br><small>每天抽一張,看和偶像的緣分</small></span>
+      </button>
     </div>
 
     <!-- 猜猜看遊戲 -->
@@ -969,6 +994,15 @@ window.FIREBASE_CONFIG = {
         <button class="ghost-btn" id="gachaBack">← 選遊戲</button>
       </div>
       <div id="gachaArea"></div>
+    </div>
+
+    <!-- 每日幸運籤 -->
+    <div id="fortuneWrap" style="display:none">
+      <div class="game-head">
+        <div class="game-info"><span>🔮 每日幸運籤</span></div>
+        <button class="ghost-btn" id="fortuneBack">← 選遊戲</button>
+      </div>
+      <div id="fortuneArea"></div>
     </div>
   </section>
 
@@ -1875,6 +1909,7 @@ function showGameMenu() {
   $("g2048Wrap").style.display = "none";
   $("match3Wrap").style.display = "none";
   $("gachaWrap").style.display = "none";
+  $("fortuneWrap").style.display = "none";
   if (memoryState && memoryState.timer) clearInterval(memoryState.timer);
   if (guessGame && guessGame.timer) clearInterval(guessGame.timer);
   if (numberState && numberState.timer) clearTimeout(numberState.timer);
@@ -1892,7 +1927,8 @@ document.querySelectorAll("[data-game]").forEach(b => b.onclick = () => {
   else if (g === "block") { $("blockWrap").style.display = ""; setupBlock(); }
   else if (g === "g2048") { $("g2048Wrap").style.display = ""; setup2048(); }
   else if (g === "match3") { $("match3Wrap").style.display = ""; setupMatch3(); }
-  else { $("gachaWrap").style.display = ""; setupGacha(); }
+  else if (g === "gacha") { $("gachaWrap").style.display = ""; setupGacha(); }
+  else { $("fortuneWrap").style.display = ""; setupFortune(); }
 });
 $("guessBack").onclick = showGameMenu;
 $("memoryBack").onclick = showGameMenu;
@@ -1903,6 +1939,7 @@ $("blockBack").onclick = showGameMenu;
 $("g2048Back").onclick = showGameMenu;
 $("match3Back").onclick = showGameMenu;
 $("gachaBack").onclick = showGameMenu;
+$("fortuneBack").onclick = showGameMenu;
 
 /* ================== 猜照片遊戲 🔍❤️ ================== */
 let guessGame = null;
@@ -3378,6 +3415,63 @@ function confirmResetGacha() {
   };
 }
 
+/* ================== 每日幸運籤 🔮 ================== */
+const FORTUNE_MSGS = {
+  5: ["今天是大吉日!和他的緣分爆表 💖", "今天適合重看他的影片,會充電滿滿!", "今天他的好消息可能會出現,期待一下 ✨", "超幸運的一天,和他的距離只有 0 公分!"],
+  4: ["今天運勢很好,想到他就會微笑 😊", "適合整理他的照片,會有新發現!", "今天聽他唱的歌,心情會超好 🎵", "和他的緣分滿滿,記得幫他應援!"],
+  3: ["平穩的一天,默默支持他就好 🌱", "今天適合寫一篇給他的小日記 ✍️", "緣分普普,但喜歡的心不會變 💕", "今天想他的時候,他可能也在加油喔!"],
+  2: ["今天有點小忙,但別忘了看看他 👀", "緣分稍弱,多看一張照片補回來!", "今天適合安靜地當他的後盾 🤍", "運勢平平,喜歡他就是最棒的事!"],
+  1: ["今天緣分藏起來了,明天會更好 🍀", "雖然指數低,你的應援他都收到了!", "今天適合休息,養精蓄銳再追星 😌", "緣分在充電中,明天記得再來抽!"]
+};
+
+function setupFortune() {
+  const area = $("fortuneArea");
+  const today = todayStr();
+  // 如果今天已經抽過了,直接顯示今天的籤
+  if (fortuneToday && fortuneToday.date === today) {
+    showFortuneResult(fortuneToday, true);
+    return;
+  }
+  // 還沒抽,顯示籤筒
+  if (idols.length === 0) {
+    area.innerHTML = `<div class="empty">先去新增至少一位偶像,才能抽今日緣分籤喔 🔮</div>`;
+    return;
+  }
+  area.innerHTML = `
+    <div class="fortune-intro">
+      <div class="fortune-cup">🎋</div>
+      <div class="fortune-tip">今天還沒抽籤喔~<br>看看今天和哪位偶像最有緣 💖</div>
+      <button class="primary-btn fortune-draw-btn" id="fortuneDraw">抽今日籤 🔮</button>
+    </div>`;
+  $("fortuneDraw").onclick = drawFortune;
+}
+
+function drawFortune() {
+  const idol = idols[Math.floor(Math.random() * idols.length)];
+  const stars = 1 + Math.floor(Math.random() * 5);          // 1~5 顆星
+  const msgs = FORTUNE_MSGS[stars];
+  const msg = msgs[Math.floor(Math.random() * msgs.length)];
+  fortuneToday = {
+    date: todayStr(), name: idol.name, emoji: idol.emoji || "💖",
+    color: idol.color, stars, msg
+  };
+  setDoc(doc(db, "users", uid, "settings", "prefs"), { fortuneToday }, { merge: true });
+  showFortuneResult(fortuneToday, false);
+}
+
+function showFortuneResult(f, alreadyDrawn) {
+  const area = $("fortuneArea");
+  const starStr = "⭐".repeat(f.stars) + "☆".repeat(5 - f.stars);
+  area.innerHTML = `
+    <div class="fortune-card" style="border-color:${esc(f.color || "#ffb3d1")}">
+      <div class="fortune-head">🔮 今日籤</div>
+      <div class="fortune-name">今天和你最有緣的是<br><b>${esc(f.emoji)} ${esc(f.name)}</b></div>
+      <div class="fortune-stars">緣分指數<br>${starStr}</div>
+      <div class="fortune-msg">「${esc(f.msg)}」</div>
+    </div>
+    <div class="fortune-foot">${alreadyDrawn ? "今天抽過囉,明天再來看新的緣分 🌙" : "🎉 這是你今天的籤!明天可以再抽一次"}</div>`;
+}
+
 /* ================== 里程碑慶祝 🎉 ================== */
 let celebrateQueue = [];
 
@@ -3467,6 +3561,7 @@ let bestStreak = 0; // 史上最高連勝
 let gachaOwned = {}; // 已收集的小卡 {照片id_稀有度: true}
 let gachaPoints = 0; // 點數
 let gachaDaily = { date: "", left: 3 }; // 今天剩幾次
+let fortuneToday = null; // 今天抽的籤 {date, name, emoji, stars, msg}
 let bgColor = "", bgImage = ""; // 背景顏色 / 圖片
 
 function listenSettings() {
@@ -3495,6 +3590,7 @@ function listenSettings() {
     gachaOwned = data.gachaOwned || {}; // 小卡收藏
     gachaPoints = data.gachaPoints || 0; // 點數
     gachaDaily = data.gachaDaily || { date: "", left: 3 }; // 每日抽卡
+    fortuneToday = data.fortuneToday || null; // 今天的籤
     rerenderActiveList(); // 標準改了,文章徽章跟著更新
   });
 }
