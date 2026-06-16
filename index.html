@@ -1296,6 +1296,7 @@ function renderCards() {
           <button class="menu-item" data-pin="${idol.id}">${idol.pinned ? "📌 取消釘選" : "📌 釘選到最前面"}</button>
           <button class="menu-item" data-profile="${idol.id}">👤 查看主頁</button>
           <button class="menu-item" data-photos="${idol.id}">📷 管理照片</button>
+          <button class="menu-item" data-ingame="${idol.id}">${idol.inGame === false ? "🚫 只當照片倉庫(點擊改回)" : "🎮 會出現在猜名字遊戲"}</button>
           <button class="menu-item" data-edit="${idol.id}">✏️ 編輯</button>
           <button class="menu-item danger" data-del="${idol.id}">🗑️ 刪除</button>
         </div>
@@ -1326,6 +1327,12 @@ function renderCards() {
   });
   grid.querySelectorAll("[data-profile]").forEach(b => b.onclick = () => openProfile(b.dataset.profile));
   grid.querySelectorAll("[data-photos]").forEach(b => b.onclick = () => openPhotoManager(b.dataset.photos));
+  grid.querySelectorAll("[data-ingame]").forEach(b => b.onclick = async () => {
+    const idol = idols.find(i => i.id === b.dataset.ingame);
+    const next = idol.inGame === false ? true : false; // 切換
+    await setDoc(doc(db, "users", uid, "idols", b.dataset.ingame), { inGame: next }, { merge: true });
+    toast(next ? "會出現在猜名字遊戲了 🎮" : "改成只當照片倉庫 🚫");
+  });
   grid.querySelectorAll("[data-pin]").forEach(b => b.onclick = async () => {
     const idol = idols.find(i => i.id === b.dataset.pin);
     await setDoc(doc(db, "users", uid, "idols", idol.id), { pinned: !idol.pinned }, { merge: true });
@@ -1904,10 +1911,15 @@ function photoPool() {
   return pool;
 }
 
+// 只取「會出現在猜名字遊戲」的偶像(inGame !== false)
+function gameIdols() {
+  return idols.filter(i => i.inGame !== false);
+}
+
 function startGame() {
   const area = $("gameArea");
-  if (idols.length < 2) {
-    area.innerHTML = `<div class="empty">至少要有 2 位偶像才能玩喔~<br>去「偶像卡片」多加一位吧 🎯</div>`;
+  if (gameIdols().length < 2) {
+    area.innerHTML = `<div class="empty">至少要有 2 位偶像才能玩喔~<br>(在卡片「⋯」設成「只當照片倉庫」的不算)<br>去「偶像卡片」多加一位吧 🎯</div>`;
     $("gameScore").textContent = "0";
     $("gameLives").textContent = "❤️❤️❤️";
     return;
@@ -1927,9 +1939,10 @@ function nextQuestion() {
   // 清掉上一題的計時器
   if (guessGame.timer) clearInterval(guessGame.timer);
 
-  // 隨機挑一位「能出題」的偶像當答案
-  const answer = idols[Math.floor(Math.random() * idols.length)];
-  const others = idols.filter(i => i.id !== answer.id);
+  // 隨機挑一位「會出現在遊戲」的偶像當答案
+  const pool = gameIdols();
+  const answer = pool[Math.floor(Math.random() * pool.length)];
+  const others = pool.filter(i => i.id !== answer.id);
   shuffle(others);
   const options = shuffle([answer, ...others.slice(0, 3)]);
 
@@ -2315,11 +2328,11 @@ const WHACK_UP_TIME = 1500;  // 地鼠冒出來停留時間(毫秒)
 
 function startWhack() {
   stopWhack();
-  // 需要至少 2 位偶像、且都有照片(地鼠要顯示臉)
-  const withPhotos = idols.filter(i => (i.gallery || []).length > 0);
+  // 需要至少 2 位「會出現在遊戲」且有照片的偶像(地鼠要顯示臉)
+  const withPhotos = gameIdols().filter(i => (i.gallery || []).length > 0);
   if (withPhotos.length < 2) {
     $("whackTarget").textContent = "";
-    $("whackArea").innerHTML = `<div class="empty">至少要 2 位偶像、而且都有照片才能玩~<br>去「📷 管理照片」幫他們加照片吧 🔨</div>`;
+    $("whackArea").innerHTML = `<div class="empty">至少要 2 位偶像、而且都有照片才能玩~<br>(設成「只當照片倉庫」的不算)<br>去「📷 管理照片」幫他們加照片吧 🔨</div>`;
     $("whackScore").textContent = "0";
     $("whackLives").textContent = "❤️❤️❤️";
     return;
