@@ -556,6 +556,14 @@
   }
   body.dark .fortune-msg{background:#2e2236;}
   .fortune-foot{text-align:center;color:var(--ink-soft);font-size:.85rem;margin-top:14px;}
+  .fortune-book{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:380px;margin:0 auto;}
+  .fortune-mini{
+    background:var(--card);border:3px solid #ffb3d1;border-radius:14px;
+    padding:10px 6px;text-align:center;box-shadow:var(--shadow);
+  }
+  .fortune-mini-date{font-size:.72rem;color:var(--ink-soft);margin-bottom:4px;}
+  .fortune-mini-name{font-weight:800;font-size:.9rem;margin-bottom:4px;}
+  .fortune-mini-stars{font-size:.75rem;}
   .gacha-machine{text-align:center;margin-bottom:16px;}
   .gacha-top{font-size:3.5rem;margin-bottom:8px;}
   .gacha-btn{font-size:1.2rem;padding:14px 36px;}
@@ -3455,7 +3463,9 @@ function drawFortune() {
     date: todayStr(), name: idol.name, emoji: idol.emoji || "💖",
     color: idol.color, stars, msg
   };
-  setDoc(doc(db, "users", uid, "settings", "prefs"), { fortuneToday }, { merge: true });
+  // 存進收藏冊(放最前面,最新的在前)
+  fortuneLog = [fortuneToday, ...fortuneLog];
+  setDoc(doc(db, "users", uid, "settings", "prefs"), { fortuneToday, fortuneLog }, { merge: true });
   showFortuneResult(fortuneToday, false);
 }
 
@@ -3469,7 +3479,30 @@ function showFortuneResult(f, alreadyDrawn) {
       <div class="fortune-stars">緣分指數<br>${starStr}</div>
       <div class="fortune-msg">「${esc(f.msg)}」</div>
     </div>
-    <div class="fortune-foot">${alreadyDrawn ? "今天抽過囉,明天再來看新的緣分 🌙" : "🎉 這是你今天的籤!明天可以再抽一次"}</div>`;
+    <div class="fortune-foot">${alreadyDrawn ? "今天抽過囉,明天再來看新的緣分 🌙" : "🎉 收進緣分日記了!明天可以再抽一次"}</div>
+    <div class="bd-section-title" style="margin-top:22px">緣分日記 📖 (${fortuneLog.length} 張)</div>
+    <div class="fortune-book" id="fortuneBook"></div>`;
+  drawFortuneBook();
+}
+
+function drawFortuneBook() {
+  const book = $("fortuneBook");
+  if (!book) return;
+  if (fortuneLog.length === 0) {
+    book.innerHTML = `<div class="empty">還沒有收集到籤~每天抽一張就會出現在這裡 📖</div>`;
+    return;
+  }
+  book.innerHTML = "";
+  fortuneLog.forEach(f => {
+    const card = document.createElement("div");
+    card.className = "fortune-mini";
+    card.style.borderColor = f.color || "#ffb3d1";
+    card.innerHTML = `
+      <div class="fortune-mini-date">${esc(f.date)}</div>
+      <div class="fortune-mini-name">${esc(f.emoji)} ${esc(f.name)}</div>
+      <div class="fortune-mini-stars">${"⭐".repeat(f.stars)}</div>`;
+    book.appendChild(card);
+  });
 }
 
 /* ================== 里程碑慶祝 🎉 ================== */
@@ -3562,6 +3595,7 @@ let gachaOwned = {}; // 已收集的小卡 {照片id_稀有度: true}
 let gachaPoints = 0; // 點數
 let gachaDaily = { date: "", left: 3 }; // 今天剩幾次
 let fortuneToday = null; // 今天抽的籤 {date, name, emoji, stars, msg}
+let fortuneLog = []; // 籤收藏冊(每天一張)
 let bgColor = "", bgImage = ""; // 背景顏色 / 圖片
 
 function listenSettings() {
@@ -3591,6 +3625,7 @@ function listenSettings() {
     gachaPoints = data.gachaPoints || 0; // 點數
     gachaDaily = data.gachaDaily || { date: "", left: 3 }; // 每日抽卡
     fortuneToday = data.fortuneToday || null; // 今天的籤
+    fortuneLog = data.fortuneLog || []; // 籤收藏冊
     rerenderActiveList(); // 標準改了,文章徽章跟著更新
   });
 }
