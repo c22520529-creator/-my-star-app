@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>我的追星小宇宙🐹💕</title>
+<title>我的追星小宇宙 ⭐</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
@@ -2238,10 +2238,15 @@ function timeUp() {
   // 標出正確答案
   const right = $("gameArea").querySelector(`[data-pick="${guessGame.answerId}"]`);
   if (right) right.classList.add("correct");
-  guessGame.lives--;
-  guessGame.streak = 0; // 連勝斷掉
+  // 連對 3 題以上 = 連勝保護,時間到不扣命,只斷連勝
+  if (guessGame.streak >= 3) {
+    toast("時間到!⏰ 連勝中斷,但免扣命 💗");
+  } else {
+    guessGame.lives--;
+    toast("時間到!⏰ 連勝歸零");
+  }
+  guessGame.streak = 0;
   updateGameHud();
-  toast("時間到!⏰ 連勝歸零");
   if (guessGame.lives <= 0) setTimeout(gameOver, 1200);
   else setTimeout(nextQuestion, 1200);
 }
@@ -2267,8 +2272,13 @@ function answerQuestion(btn, pickedId) {
     sfx.wrong();
     const right = $("gameArea").querySelector(`[data-pick="${guessGame.answerId}"]`);
     if (right) right.classList.add("correct");
-    guessGame.lives--;
-    guessGame.streak = 0; // 連勝斷掉
+    // 連對 3 題以上 = 連勝保護,答錯不扣命,只斷連勝
+    if (guessGame.streak >= 3) {
+      toast(`連勝中斷!🔥 但這次免扣命 💗`);
+    } else {
+      guessGame.lives--; // 沒在連勝中 → 正常扣命
+    }
+    guessGame.streak = 0;
     updateGameHud();
     if (guessGame.lives <= 0) setTimeout(gameOver, 1200);
     else setTimeout(nextQuestion, 1200);
