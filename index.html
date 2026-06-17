@@ -564,6 +564,35 @@
   .fortune-mini-date{font-size:.72rem;color:var(--ink-soft);margin-bottom:4px;}
   .fortune-mini-name{font-weight:800;font-size:.9rem;margin-bottom:4px;}
   .fortune-mini-stars{font-size:.75rem;}
+
+  /* ---------- 好感度養成 ---------- */
+  .aff-card{
+    max-width:340px;margin:0 auto 16px;background:var(--card);
+    border:4px solid #ffb3d1;border-radius:22px;box-shadow:var(--shadow);
+    padding:22px;text-align:center;
+  }
+  .aff-photo{width:90px;height:90px;border-radius:50%;object-fit:cover;margin-bottom:12px;}
+  .aff-emoji{font-size:3.5rem;margin-bottom:12px;}
+  .aff-name{font-size:1.2rem;font-weight:800;margin-bottom:14px;}
+  .aff-name b{color:var(--accent-2);}
+  .aff-bar{height:16px;background:#f0eafa;border-radius:999px;overflow:hidden;margin-bottom:6px;}
+  body.dark .aff-bar{background:#2e2640;}
+  .aff-bar-fill{height:100%;border-radius:999px;transition:width .5s;}
+  .aff-bar-txt{font-size:.82rem;color:var(--ink-soft);margin-bottom:12px;}
+  .aff-msg{background:#fff4f9;border-radius:14px;padding:14px;font-weight:700;line-height:1.5;}
+  body.dark .aff-msg{background:#2e2236;}
+  .aff-daily-btn{display:block;margin:0 auto;width:100%;max-width:340px;font-size:1.1rem;padding:14px;}
+  .aff-tasks{max-width:340px;margin:0 auto;display:flex;flex-direction:column;gap:8px;}
+  .aff-task{
+    display:flex;justify-content:space-between;align-items:center;
+    background:var(--card);border:2px solid #ece2fb;border-radius:14px;
+    padding:13px 16px;font-size:1rem;font-weight:700;color:var(--ink);
+    cursor:pointer;font-family:inherit;
+  }
+  .aff-task:hover:not(.done){border-color:var(--accent-2);}
+  .aff-task.done{opacity:.5;cursor:default;}
+  .aff-task-pts{color:var(--accent-2);font-weight:800;}
+  .aff-pick{display:flex;flex-direction:column;}
   .gacha-machine{text-align:center;margin-bottom:16px;}
   .gacha-top{font-size:3.5rem;margin-bottom:8px;}
   .gacha-btn{font-size:1.2rem;padding:14px 36px;}
@@ -891,6 +920,10 @@ window.FIREBASE_CONFIG = {
         <span class="game-pick-emoji">🔮</span>
         <span><b>每日幸運籤</b><br><small>每天抽一張,看和偶像的緣分</small></span>
       </button>
+      <button class="game-pick" data-game="affection">
+        <span class="game-pick-emoji">💌</span>
+        <span><b>好感度養成</b><br><small>每天互動、做任務,養好感度</small></span>
+      </button>
     </div>
 
     <!-- 猜猜看遊戲 -->
@@ -1011,6 +1044,15 @@ window.FIREBASE_CONFIG = {
         <button class="ghost-btn" id="fortuneBack">← 選遊戲</button>
       </div>
       <div id="fortuneArea"></div>
+    </div>
+
+    <!-- 好感度養成 -->
+    <div id="affectionWrap" style="display:none">
+      <div class="game-head">
+        <div class="game-info"><span>💌 好感度養成</span></div>
+        <button class="ghost-btn" id="affectionBack">← 選遊戲</button>
+      </div>
+      <div id="affectionArea"></div>
     </div>
   </section>
 
@@ -1918,6 +1960,7 @@ function showGameMenu() {
   $("match3Wrap").style.display = "none";
   $("gachaWrap").style.display = "none";
   $("fortuneWrap").style.display = "none";
+  $("affectionWrap").style.display = "none";
   if (memoryState && memoryState.timer) clearInterval(memoryState.timer);
   if (guessGame && guessGame.timer) clearInterval(guessGame.timer);
   if (numberState && numberState.timer) clearTimeout(numberState.timer);
@@ -1936,7 +1979,8 @@ document.querySelectorAll("[data-game]").forEach(b => b.onclick = () => {
   else if (g === "g2048") { $("g2048Wrap").style.display = ""; setup2048(); }
   else if (g === "match3") { $("match3Wrap").style.display = ""; setupMatch3(); }
   else if (g === "gacha") { $("gachaWrap").style.display = ""; setupGacha(); }
-  else { $("fortuneWrap").style.display = ""; setupFortune(); }
+  else if (g === "fortune") { $("fortuneWrap").style.display = ""; setupFortune(); }
+  else { $("affectionWrap").style.display = ""; setupAffection(); }
 });
 $("guessBack").onclick = showGameMenu;
 $("memoryBack").onclick = showGameMenu;
@@ -1948,6 +1992,7 @@ $("g2048Back").onclick = showGameMenu;
 $("match3Back").onclick = showGameMenu;
 $("gachaBack").onclick = showGameMenu;
 $("fortuneBack").onclick = showGameMenu;
+$("affectionBack").onclick = showGameMenu;
 
 /* ================== 猜照片遊戲 🔍❤️ ================== */
 let guessGame = null;
@@ -3505,6 +3550,122 @@ function drawFortuneBook() {
   });
 }
 
+/* ================== 好感度養成 💌 ================== */
+// 每一級需要的好感度(累積),等級小語
+const AFF_LEVEL_STEP = 20; // 每 20 點升一級
+const AFF_MSGS = [
+  "你們的故事才剛開始 🌱",
+  "你開始更了解他了 💗",
+  "你是他很重要的粉絲 ✨",
+  "你們的羈絆越來越深 💕",
+  "你是他最忠實的粉絲! 🌟",
+  "命中注定的應援關係 💖",
+  "傳說級的真愛粉! 👑"
+];
+// 每日任務清單(固定幾個)
+const AFF_TASKS = [
+  { id: "video", label: "看他的影片", pts: 3 },
+  { id: "photo", label: "看一張他的照片", pts: 2 },
+  { id: "share", label: "跟朋友分享他", pts: 3 },
+  { id: "song",  label: "聽他唱的歌", pts: 2 }
+];
+
+function affOf(id) {
+  if (!affection[id]) affection[id] = { points: 0, lastDaily: "", tasks: { date: "", done: [] } };
+  // 換日就清空今天的任務勾選
+  const t = todayStr();
+  if (affection[id].tasks.date !== t) affection[id].tasks = { date: t, done: [] };
+  return affection[id];
+}
+function affLevel(points) { return Math.floor(points / AFF_LEVEL_STEP) + 1; }
+
+function setupAffection() {
+  const area = $("affectionArea");
+  if (idols.length === 0) {
+    area.innerHTML = `<div class="empty">先去新增一位偶像,就能養好感度囉 💌</div>`;
+    return;
+  }
+  // 選一位偶像來養
+  area.innerHTML = `
+    <div class="mem-pick-title">要養誰的好感度?💌</div>
+    <div class="aff-pick" id="affPick"></div>`;
+  const pick = $("affPick");
+  idols.forEach(idol => {
+    const a = affOf(idol.id);
+    const btn = document.createElement("button");
+    btn.className = "game-pick";
+    btn.style.maxWidth = "380px"; btn.style.margin = "0 auto 12px";
+    const photo = (idol.gallery && idol.gallery[0]) || idol.photoData || idol.photoUrl;
+    btn.innerHTML = `
+      ${photo ? `<img src="${esc(photo)}" style="width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0">`
+              : `<span class="game-pick-emoji">${esc(idol.emoji || "💖")}</span>`}
+      <span><b>${esc(idol.name)}</b><br><small>Lv.${affLevel(a.points)} · 好感度 ${a.points}</small></span>`;
+    btn.onclick = () => openAffection(idol.id);
+    pick.appendChild(btn);
+  });
+}
+
+function openAffection(id) {
+  const idol = idols.find(i => i.id === id);
+  const a = affOf(id);
+  const today = todayStr();
+  const lv = affLevel(a.points);
+  const inLevel = a.points % AFF_LEVEL_STEP;
+  const pct = Math.round(inLevel / AFF_LEVEL_STEP * 100);
+  const msg = AFF_MSGS[Math.min(lv - 1, AFF_MSGS.length - 1)];
+  const dailyDone = a.lastDaily === today;
+  const photo = (idol.gallery && idol.gallery[0]) || idol.photoData || idol.photoUrl;
+
+  const area = $("affectionArea");
+  area.innerHTML = `
+    <div class="aff-card" style="border-color:${esc(idol.color || "#ffb3d1")}">
+      ${photo ? `<img class="aff-photo" src="${esc(photo)}" alt="">` : `<div class="aff-emoji">${esc(idol.emoji || "💖")}</div>`}
+      <div class="aff-name">${esc(idol.emoji || "")} ${esc(idol.name)}　<b>Lv.${lv}</b></div>
+      <div class="aff-bar"><div class="aff-bar-fill" style="width:${pct}%;background:${esc(idol.color || "#ff7eb6")}"></div></div>
+      <div class="aff-bar-txt">好感度 ${inLevel}/${AFF_LEVEL_STEP}（總 ${a.points}）</div>
+      <div class="aff-msg">「${esc(msg)}」</div>
+    </div>
+
+    <button class="primary-btn aff-daily-btn" id="affDaily" ${dailyDone ? "disabled" : ""}>
+      ${dailyDone ? "今天已經應援過了 🌙" : "📣 今天也要應援！(+5)"}
+    </button>
+
+    <div class="bd-section-title" style="margin-top:20px">今日任務 💬</div>
+    <div class="aff-tasks" id="affTasks"></div>
+
+    <button class="ghost-btn" id="affBackPick" style="margin-top:16px;width:100%">← 換一位養</button>`;
+
+  $("affDaily").onclick = () => {
+    a.points += 5;
+    a.lastDaily = today;
+    saveAffection();
+    openAffection(id);
+    toast("應援 +5 好感度 💕");
+  };
+  $("affBackPick").onclick = setupAffection;
+
+  // 今日任務
+  const tasksEl = $("affTasks");
+  AFF_TASKS.forEach(task => {
+    const done = a.tasks.done.includes(task.id);
+    const row = document.createElement("button");
+    row.className = "aff-task" + (done ? " done" : "");
+    row.innerHTML = `<span>${done ? "✅" : "⬜"} ${esc(task.label)}</span><span class="aff-task-pts">+${task.pts}</span>`;
+    if (!done) row.onclick = () => {
+      a.tasks.done.push(task.id);
+      a.points += task.pts;
+      saveAffection();
+      openAffection(id);
+      toast(`完成任務 +${task.pts} 💕`);
+    };
+    tasksEl.appendChild(row);
+  });
+}
+
+function saveAffection() {
+  setDoc(doc(db, "users", uid, "settings", "prefs"), { affection }, { merge: true });
+}
+
 /* ================== 里程碑慶祝 🎉 ================== */
 let celebrateQueue = [];
 
@@ -3596,6 +3757,7 @@ let gachaPoints = 0; // 點數
 let gachaDaily = { date: "", left: 3 }; // 今天剩幾次
 let fortuneToday = null; // 今天抽的籤 {date, name, emoji, stars, msg}
 let fortuneLog = []; // 籤收藏冊(每天一張)
+let affection = {}; // 每位偶像的好感度 {idolId: {points, lastDaily, tasks:{date, done:[]}}}
 let bgColor = "", bgImage = ""; // 背景顏色 / 圖片
 
 function listenSettings() {
@@ -3626,6 +3788,7 @@ function listenSettings() {
     gachaDaily = data.gachaDaily || { date: "", left: 3 }; // 每日抽卡
     fortuneToday = data.fortuneToday || null; // 今天的籤
     fortuneLog = data.fortuneLog || []; // 籤收藏冊
+    affection = data.affection || {}; // 好感度
     rerenderActiveList(); // 標準改了,文章徽章跟著更新
   });
 }
