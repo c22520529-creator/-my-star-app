@@ -3486,7 +3486,7 @@ function setupFortune() {
     return;
   }
   // 還沒抽,顯示籤筒
-  if (idols.length === 0) {
+  if (gameIdols().length === 0) {
     area.innerHTML = `<div class="empty">先去新增至少一位偶像,才能抽今日緣分籤喔 🔮</div>`;
     return;
   }
@@ -3500,7 +3500,8 @@ function setupFortune() {
 }
 
 function drawFortune() {
-  const idol = idols[Math.floor(Math.random() * idols.length)];
+  const pool = gameIdols();
+  const idol = pool[Math.floor(Math.random() * pool.length)];
   const stars = 1 + Math.floor(Math.random() * 5);          // 1~5 顆星
   const msgs = FORTUNE_MSGS[stars];
   const msg = msgs[Math.floor(Math.random() * msgs.length)];
@@ -3581,8 +3582,9 @@ function affLevel(points) { return Math.floor(points / AFF_LEVEL_STEP) + 1; }
 
 function setupAffection() {
   const area = $("affectionArea");
-  if (idols.length === 0) {
-    area.innerHTML = `<div class="empty">先去新增一位偶像,就能養好感度囉 💌</div>`;
+  const list = gameIdols(); // 只認本尊(藏起照片倉庫卡)
+  if (list.length === 0) {
+    area.innerHTML = `<div class="empty">先去新增一位偶像,就能養好感度囉 💌<br>(設成「只當照片倉庫」的不算)</div>`;
     return;
   }
   // 選一位偶像來養
@@ -3590,7 +3592,7 @@ function setupAffection() {
     <div class="mem-pick-title">要養誰的好感度?💌</div>
     <div class="aff-pick" id="affPick"></div>`;
   const pick = $("affPick");
-  idols.forEach(idol => {
+  list.forEach(idol => {
     const a = affOf(idol.id);
     const btn = document.createElement("button");
     btn.className = "game-pick";
