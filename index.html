@@ -603,6 +603,22 @@
   .aff-inter:hover:not(.locked):not(.used){border-color:#ff5ea8;}
   .aff-inter.locked{opacity:.45;cursor:not-allowed;border-color:#ddd;}
   .aff-inter.used{opacity:.5;cursor:default;}
+
+  /* ---------- 貪吃蛇 ---------- */
+  .snake-board{
+    display:grid;gap:1px;max-width:360px;margin:0 auto 12px;aspect-ratio:1;
+    background:#cbe8d4;padding:3px;border-radius:10px;touch-action:none;
+  }
+  body.dark .snake-board{background:#1d2e23;}
+  .snake-cell{
+    border-radius:2px;background:#eafaf0;
+    background-size:cover;background-position:center;
+    display:flex;align-items:center;justify-content:center;font-size:.8rem;
+  }
+  body.dark .snake-cell{background:#16201a;}
+  .snake-cell.snake-body{background:#7ed957;border-radius:3px;}
+  .snake-cell.snake-head{background:#4caf50;border-radius:4px;box-shadow:inset 0 0 0 1px #fff;}
+  .snake-cell.snake-food{border-radius:50%;box-shadow:0 0 0 2px #ff7eb6;background-color:#fff;}
   .gacha-machine{text-align:center;margin-bottom:16px;}
   .gacha-top{font-size:3.5rem;margin-bottom:8px;}
   .gacha-btn{font-size:1.2rem;padding:14px 36px;}
@@ -934,6 +950,10 @@ window.FIREBASE_CONFIG = {
         <span class="game-pick-emoji">💌</span>
         <span><b>好感度養成</b><br><small>每天互動、做任務,養好感度</small></span>
       </button>
+      <button class="game-pick" data-game="snake">
+        <span class="game-pick-emoji">🐍</span>
+        <span><b>貪吃蛇</b><br><small>吃東西變長,別撞牆咬到自己</small></span>
+      </button>
     </div>
 
     <!-- 猜猜看遊戲 -->
@@ -1063,6 +1083,15 @@ window.FIREBASE_CONFIG = {
         <button class="ghost-btn" id="affectionBack">← 選遊戲</button>
       </div>
       <div id="affectionArea"></div>
+    </div>
+
+    <!-- 貪吃蛇 -->
+    <div id="snakeWrap" style="display:none">
+      <div class="game-head">
+        <div class="game-info"><span>分數 <b id="snakeScore">0</b></span></div>
+        <button class="ghost-btn" id="snakeBack">← 選遊戲</button>
+      </div>
+      <div id="snakeArea"></div>
     </div>
   </section>
 
@@ -1971,11 +2000,13 @@ function showGameMenu() {
   $("gachaWrap").style.display = "none";
   $("fortuneWrap").style.display = "none";
   $("affectionWrap").style.display = "none";
+  $("snakeWrap").style.display = "none";
   if (memoryState && memoryState.timer) clearInterval(memoryState.timer);
   if (guessGame && guessGame.timer) clearInterval(guessGame.timer);
   if (numberState && numberState.timer) clearTimeout(numberState.timer);
   stopWhack();
   stop2048Keys();
+  stopSnake();
 }
 document.querySelectorAll("[data-game]").forEach(b => b.onclick = () => {
   const g = b.dataset.game;
@@ -1990,7 +2021,8 @@ document.querySelectorAll("[data-game]").forEach(b => b.onclick = () => {
   else if (g === "match3") { $("match3Wrap").style.display = ""; setupMatch3(); }
   else if (g === "gacha") { $("gachaWrap").style.display = ""; setupGacha(); }
   else if (g === "fortune") { $("fortuneWrap").style.display = ""; setupFortune(); }
-  else { $("affectionWrap").style.display = ""; setupAffection(); }
+  else if (g === "affection") { $("affectionWrap").style.display = ""; setupAffection(); }
+  else { $("snakeWrap").style.display = ""; setupSnake(); }
 });
 $("guessBack").onclick = showGameMenu;
 $("memoryBack").onclick = showGameMenu;
@@ -2002,6 +2034,8 @@ $("g2048Back").onclick = showGameMenu;
 $("match3Back").onclick = showGameMenu;
 $("gachaBack").onclick = showGameMenu;
 $("fortuneBack").onclick = showGameMenu;
+$("affectionBack").onclick = showGameMenu;
+$("snakeBack").onclick = showGameMenu;
 $("affectionBack").onclick = showGameMenu;
 
 /* ================== 猜照片遊戲 🔍❤️ ================== */
@@ -3710,6 +3744,142 @@ function openAffection(id) {
 
 function saveAffection() {
   setDoc(doc(db, "users", uid, "settings", "prefs"), { affection }, { merge: true });
+}
+
+/* ================== 貪吃蛇 🐍 ================== */
+let snake = null;
+const SNAKE_GRID = 15;     // 15×15 格
+const SNAKE_SPEED = 180;   // 每步幾毫秒(越小越快)
+
+function setupSnake() {
+  const area = $("snakeArea");
+  $("snakeScore").textContent = "0";
+  area.innerHTML = `
+    <div class="snake-board" id="snakeBoard"></div>
+    <div class="g2048-hint">電腦用方向鍵 ↑↓←→,手機在格子上滑動</div>
+    <div id="snakeMsg"></div>`;
+  startSnake();
+}
+
+function startSnake() {
+  stopSnake();
+  // 蛇從中間開始,長度 3,往右
+  const mid = Math.floor(SNAKE_GRID / 2);
+  const body = [{ x: mid - 1, y: mid }, { x: mid, y: mid }, { x: mid + 1, y: mid }];
+  // 食物用偶像照片(本尊本尊都可,純當圖案)
+  const photos = allPhotos();
+  snake = {
+    body, dir: { x: 1, y: 0 }, nextDir: { x: 1, y: 0 },
+    food: null, score: 0, photos, over: false, timer: null
+  };
+  placeFood();
+  drawSnake();
+  bindSnakeKeys();
+  snake.timer = setInterval(snakeStep, SNAKE_SPEED);
+}
+
+function stopSnake() {
+  if (snake && snake.timer) clearInterval(snake.timer);
+  if (snakeKeyHandler) window.removeEventListener("keydown", snakeKeyHandler);
+  snakeKeyHandler = null;
+}
+
+function placeFood() {
+  let p;
+  do {
+    p = { x: Math.floor(Math.random() * SNAKE_GRID), y: Math.floor(Math.random() * SNAKE_GRID) };
+  } while (snake.body.some(s => s.x === p.x && s.y === p.y));
+  // 隨機挑一張照片當這顆食物的圖案
+  p.img = snake.photos.length ? snake.photos[Math.floor(Math.random() * snake.photos.length)] : null;
+  snake.food = p;
+}
+
+function snakeStep() {
+  if (!snake || snake.over) return;
+  snake.dir = snake.nextDir;
+  const head = snake.body[snake.body.length - 1];
+  const nx = head.x + snake.dir.x;
+  const ny = head.y + snake.dir.y;
+
+  // 撞牆
+  if (nx < 0 || nx >= SNAKE_GRID || ny < 0 || ny >= SNAKE_GRID) { snakeOver(); return; }
+  // 咬到自己
+  if (snake.body.some(s => s.x === nx && s.y === ny)) { snakeOver(); return; }
+
+  snake.body.push({ x: nx, y: ny });
+  // 吃到食物
+  if (nx === snake.food.x && ny === snake.food.y) {
+    snake.score++;
+    $("snakeScore").textContent = snake.score;
+    placeFood();          // 不砍尾巴 = 變長
+  } else {
+    snake.body.shift();   // 沒吃到 = 砍尾巴(維持長度)
+  }
+  drawSnake();
+}
+
+function drawSnake() {
+  const board = $("snakeBoard");
+  if (!board) return;
+  board.style.gridTemplateColumns = `repeat(${SNAKE_GRID}, 1fr)`;
+  board.innerHTML = "";
+  // 用一個 map 快速查蛇身
+  const headPos = snake.body[snake.body.length - 1];
+  for (let y = 0; y < SNAKE_GRID; y++) {
+    for (let x = 0; x < SNAKE_GRID; x++) {
+      const cell = document.createElement("div");
+      cell.className = "snake-cell";
+      const isHead = headPos.x === x && headPos.y === y;
+      const isBody = snake.body.some(s => s.x === x && s.y === y);
+      const isFood = snake.food.x === x && snake.food.y === y;
+      if (isHead) { cell.classList.add("snake-head"); }
+      else if (isBody) { cell.classList.add("snake-body"); }
+      if (isFood) {
+        cell.classList.add("snake-food");
+        if (snake.food.img) cell.style.backgroundImage = `url(${snake.food.img})`;
+        else cell.textContent = "🍎";
+      }
+      board.appendChild(cell);
+    }
+  }
+}
+
+let snakeKeyHandler = null;
+function bindSnakeKeys() {
+  snakeKeyHandler = e => {
+    const d = snake.dir;
+    if (e.key === "ArrowUp" && d.y === 0) { snake.nextDir = { x: 0, y: -1 }; e.preventDefault(); }
+    else if (e.key === "ArrowDown" && d.y === 0) { snake.nextDir = { x: 0, y: 1 }; e.preventDefault(); }
+    else if (e.key === "ArrowLeft" && d.x === 0) { snake.nextDir = { x: -1, y: 0 }; e.preventDefault(); }
+    else if (e.key === "ArrowRight" && d.x === 0) { snake.nextDir = { x: 1, y: 0 }; e.preventDefault(); }
+  };
+  window.addEventListener("keydown", snakeKeyHandler);
+
+  // 手指滑動
+  const board = $("snakeBoard");
+  let sx = 0, sy = 0;
+  board.ontouchstart = e => { sx = e.touches[0].clientX; sy = e.touches[0].clientY; };
+  board.ontouchmove = e => e.preventDefault();
+  board.ontouchend = e => {
+    const dx = e.changedTouches[0].clientX - sx;
+    const dy = e.changedTouches[0].clientY - sy;
+    if (Math.abs(dx) < 15 && Math.abs(dy) < 15) return;
+    const d = snake.dir;
+    if (Math.abs(dx) > Math.abs(dy)) {
+      if (dx > 0 && d.x === 0) snake.nextDir = { x: 1, y: 0 };
+      else if (dx < 0 && d.x === 0) snake.nextDir = { x: -1, y: 0 };
+    } else {
+      if (dy > 0 && d.y === 0) snake.nextDir = { x: 0, y: 1 };
+      else if (dy < 0 && d.y === 0) snake.nextDir = { x: 0, y: -1 };
+    }
+  };
+}
+
+function snakeOver() {
+  snake.over = true;
+  stopSnake();
+  $("snakeMsg").innerHTML = `<div class="game-over">💔 撞到了,遊戲結束!<br>得分 ${snake.score} 分<br><button class="primary-btn" id="snakeAgainBtn" style="margin-top:12px">再玩一次 🔄</button></div>`;
+  $("snakeAgainBtn").onclick = startSnake;
 }
 
 /* ================== 里程碑慶祝 🎉 ================== */
