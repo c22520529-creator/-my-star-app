@@ -3941,7 +3941,7 @@ function rpsJudge(me, foe) {
 const RPS_ROUNDS = 20;     // 一場 20 次
 const RPS_WIN_STEP = 5;    // 每贏 5 次 +3
 const RPS_WIN_PTS = 3;
-const RPS_MAX_LOSS = 3;    // 輸 3 次提早結束
+const RPS_MAX_LOSS = 5;    // 輸 5 次提早結束
 const RPS_PENALTY = 5;     // 輸滿 3 次扣 5
 let rpsGame = null;        // 目前這場的狀態
 
@@ -3952,9 +3952,7 @@ function openRpsGame(id) {
     toast("今天 3 場玩完囉,明天再來 🌙");
     return;
   }
-  // 開新的一場
-  a.rps.left--;
-  saveAffection();
+  // 不在這裡扣場數!等整場玩完才扣(中途跳出不算)
   rpsGame = { id, round: 0, wins: 0, losses: 0, gainedPts: 0, over: false, lastMsg: "" };
   drawRpsGame();
 }
@@ -4027,8 +4025,10 @@ function rpsGameOver(finished) {
   const g = rpsGame;
   g.over = true;
   const a = affOf(g.id);
+  // 真正玩完一場了,這時才扣場數(中途跳出不算)
+  a.rps.left = Math.max(0, a.rps.left - 1);
   let penalty = 0;
-  if (!finished) {  // 輸滿 3 次提早結束 → 扣 10
+  if (!finished) {  // 輸滿 5 次提早結束 → 扣分
     penalty = Math.min(RPS_PENALTY, a.points);
     a.points = Math.max(0, a.points - RPS_PENALTY);
     sfx.lose();
@@ -4040,7 +4040,7 @@ function rpsGameOver(finished) {
   const area = $("affectionArea");
   area.innerHTML = `
     <div class="game-over">
-      ${finished ? "🎉 撐完 20 次!" : "💔 輸滿 3 次,提早結束!"}<br>
+      ${finished ? "🎉 撐完 20 次!" : "💔 輸滿 5 次,提早結束!"}<br>
       這場贏了 ${g.wins} 次<br>
       好感度 ${g.gainedPts > 0 ? "+" + g.gainedPts : "+0"}${penalty > 0 ? `，扣 ${penalty}` : ""}<br>
       今天還剩 ${a.rps.left} 場<br>
