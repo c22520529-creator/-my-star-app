@@ -1462,6 +1462,8 @@ function listenBdays() {
 function renderCards() {
   const grid = $("cardGrid");
   grid.innerHTML = "";
+  // 清掉之前可能移到 body 的選單(避免殘留)
+  document.querySelectorAll("body > .menu-pop").forEach(p => p.remove());
   // 釘選的排最前面,其餘維持原本順序
   const sorted = [...idols].sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
   sorted.forEach(idol => {
@@ -1511,12 +1513,12 @@ function renderCards() {
     const wasOpen = pop.classList.contains("show");
     document.querySelectorAll(".menu-pop").forEach(p => p.classList.remove("show"));
     if (wasOpen) return;
-    // 先顯示(才量得到大小),用 fixed 定位到 ⋯ 按鈕旁邊
+    // 把選單移到 body 底下,徹底脫離卡片的裁切與 transform
+    document.body.appendChild(pop);
     pop.classList.add("show");
     const btnRect = b.getBoundingClientRect();
     const popH = pop.offsetHeight;
     const popW = pop.offsetWidth;
-    // 預設在按鈕下方、靠右對齊;空間不夠就往上
     let top = btnRect.bottom + 4;
     if (top + popH > window.innerHeight - 8) top = btnRect.top - popH - 4;
     if (top < 8) top = 8;
@@ -1549,7 +1551,9 @@ function renderCards() {
 }
 
 /* 點別的地方就把 ⋯ 選單收起來 */
-document.addEventListener("click", () => {
+document.addEventListener("click", (e) => {
+  // 點到 ⋯ 按鈕或選單內部時,不要關閉(讓它們自己處理)
+  if (e.target.closest(".menu-pop") || e.target.closest(".menu-btn")) return;
   document.querySelectorAll(".menu-pop").forEach(p => p.classList.remove("show"));
 });
 
