@@ -3898,24 +3898,30 @@ function openAffection(id) {
     tasksEl.appendChild(row);
   });
 
-  // 互動(升級解鎖、每天一次)
+  // 互動(升級解鎖;可一直點看反應,但好感度一天只加一次)
   const intersEl = $("affInters");
   AFF_INTERACTIONS.forEach(it => {
     const unlocked = lv >= it.lv;
-    const usedToday = a.inter.done.includes(it.id);
+    const gotToday = a.inter.done.includes(it.id); // 今天是否已經加過分
     const row = document.createElement("button");
-    row.className = "aff-inter" + (!unlocked ? " locked" : "") + (usedToday ? " used" : "");
+    row.className = "aff-inter" + (!unlocked ? " locked" : "");
     if (!unlocked) {
       row.innerHTML = `<span>🔒 ${it.icon} ${esc(it.label)}</span><span class="aff-task-pts">Lv.${it.lv} 解鎖</span>`;
     } else {
-      row.innerHTML = `<span>${it.icon} ${esc(it.label)}</span><span class="aff-task-pts">${usedToday ? "今天玩過了 🌙" : "+" + it.pts}</span>`;
+      row.innerHTML = `<span>${it.icon} ${esc(it.label)}</span><span class="aff-task-pts">${gotToday ? "今天加過分了 💗" : "+" + it.pts}</span>`;
     }
-    if (unlocked && !usedToday) row.onclick = () => {
-      a.inter.done.push(it.id);
-      a.points += it.pts;
-      saveAffection();
-      openAffection(id);
-      toast(`${it.reply} +${it.pts} 💕`);
+    if (unlocked) row.onclick = () => {
+      if (!a.inter.done.includes(it.id)) {
+        // 今天第一次 → 加分
+        a.inter.done.push(it.id);
+        a.points += it.pts;
+        saveAffection();
+        openAffection(id);
+        toast(`${it.reply} +${it.pts} 💕`);
+      } else {
+        // 今天加過了 → 只看反應,不加分
+        toast(`${it.reply}`);
+      }
     };
     intersEl.appendChild(row);
   });
