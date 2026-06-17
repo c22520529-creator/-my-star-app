@@ -3938,11 +3938,8 @@ function rpsJudge(me, foe) {
   return "lose";
 }
 
-const RPS_ROUNDS = 20;     // 一場 20 次
-const RPS_WIN_STEP = 5;    // 每贏 5 次 +3
-const RPS_WIN_PTS = 3;
-const RPS_MAX_LOSS = 5;    // 輸 5 次提早結束
-const RPS_PENALTY = 5;     // 輸滿 3 次扣 5
+const RPS_ROUNDS = 20;     // 一場玩滿 20 次才結算
+const RPS_WIN_BIAS = 0.45; // 🍀 偷偷讓你贏的機率(本命加持)
 let rpsGame = null;        // 目前這場的狀態
 
 // 進入獨立猜拳遊戲頁
@@ -3962,8 +3959,6 @@ function drawRpsGame() {
   const idol = idols.find(i => i.id === g.id);
   const photo = (idol.gallery && idol.gallery[0]) || idol.photoData || idol.photoUrl;
   const area = $("affectionArea");
-  // 距離下一個 +3 還差幾勝
-  const toNext = RPS_WIN_STEP - (g.wins % RPS_WIN_STEP);
   area.innerHTML = `
     <div class="rps-game">
       <div class="rps-head">🪙 跟 ${esc(idol.emoji || "")} ${esc(idol.name)} 猜拳</div>
@@ -3971,9 +3966,9 @@ function drawRpsGame() {
       <div class="rps-stats">
         <span>第 <b>${g.round}</b>/${RPS_ROUNDS} 次</span>
         <span>贏 <b>${g.wins}</b></span>
-        <span>輸 <b>${g.losses}</b>/${RPS_MAX_LOSS}</span>
+        <span>輸 <b>${g.losses}</b></span>
       </div>
-      <div class="rps-result" id="rpsResult">${g.lastMsg || `出一個跟他比!再贏 ${toNext} 次就 +${RPS_WIN_PTS} 💕`}</div>
+      <div class="rps-result" id="rpsResult">${g.lastMsg || `出一個跟他比!玩完 20 次,贏幾次加幾分 💕`}</div>
       <div class="rps-hands">
         ${RPS_HANDS.map(h => `<button class="rps-hand" data-hand="${h.key}">${h.icon}</button>`).join("")}
       </div>
@@ -3987,7 +3982,14 @@ function rpsPlay(myHand) {
   const g = rpsGame;
   if (g.over) return;
   g.round++;
-  const foeHand = RPS_HANDS[Math.floor(Math.random() * 3)].key;
+  // 🍀 偷偷讓你贏:有一定機率電腦故意出「會輸給你」的拳
+  let foeHand;
+  if (Math.random() < RPS_WIN_BIAS) {
+    // 找出會輸給 myHand 的那個拳(讓玩家贏)
+    foeHand = RPS_HANDS.find(h => rpsJudge(myHand, h.key) === "win").key;
+  } else {
+    foeHand = RPS_HANDS[Math.floor(Math.random() * 3)].key;
+  }
   const result = rpsJudge(myHand, foeHand);
   const myIcon = RPS_HANDS.find(h => h.key === myHand).icon;
   const foeIcon = RPS_HANDS.find(h => h.key === foeHand).icon;
@@ -3998,13 +4000,6 @@ function rpsPlay(myHand) {
     g.wins++;
     sfx.correct();
     line += "🎉 你贏了!";
-    // 每贏 5 次 +3
-    if (g.wins % RPS_WIN_STEP === 0) {
-      a.points += RPS_WIN_PTS;
-      g.gainedPts += RPS_WIN_PTS;
-      line += ` 贏滿 ${g.wins} 次,好感度 +${RPS_WIN_PTS}!`;
-      saveAffection();
-    }
   } else if (result === "tie") {
     sfx.tap();
     line += "🤝 平手!";
@@ -4015,34 +4010,30 @@ function rpsPlay(myHand) {
   }
   g.lastMsg = line;
 
-  // 結束條件:輸滿 3 次,或玩滿 20 次
-  if (g.losses >= RPS_MAX_LOSS) { rpsGameOver(false); return; }
-  if (g.round >= RPS_ROUNDS) { rpsGameOver(true); return; }
+  // 玩滿 20 次才結算(不會提早結束)
+  if (g.round >= RPS_ROUNDS) { rpsGameOver(); return; }
   drawRpsGame();
 }
 
-function rpsGameOver(finished) {
+function rpsGameOver() {
   const g = rpsGame;
   g.over = true;
   const a = affOf(g.id);
-  // 真正玩完一場了,這時才扣場數(中途跳出不算)
+  // 玩完一場才扣場數
   a.rps.left = Math.max(0, a.rps.left - 1);
-  let penalty = 0;
-  if (!finished) {  // 輸滿 5 次提早結束 → 扣分
-    penalty = Math.min(RPS_PENALTY, a.points);
-    a.points = Math.max(0, a.points - RPS_PENALTY);
-    sfx.lose();
-  } else {
-    sfx.win();
-  }
+  // 結算:贏幾次 +幾分、輸幾次 -幾分(1 比 1),平手不算
+  const delta = g.wins - g.losses;
+  a.points = Math.max(0, a.points + delta);
+  if (delta > 0) sfx.win(); else sfx.lose();
   saveAffection();
   const idol = idols.find(i => i.id === g.id);
   const area = $("affectionArea");
+  const deltaText = delta > 0 ? `好感度 +${delta} 💕` : (delta < 0 ? `好感度 ${delta} 💔` : "好感度沒變");
   area.innerHTML = `
     <div class="game-over">
-      ${finished ? "🎉 撐完 20 次!" : "💔 輸滿 5 次,提早結束!"}<br>
-      這場贏了 ${g.wins} 次<br>
-      好感度 ${g.gainedPts > 0 ? "+" + g.gainedPts : "+0"}${penalty > 0 ? `，扣 ${penalty}` : ""}<br>
+      🎉 20 次玩完!<br>
+      贏 ${g.wins} 次 · 輸 ${g.losses} 次 · 平手 ${20 - g.wins - g.losses} 次<br>
+      ${deltaText}<br>
       今天還剩 ${a.rps.left} 場<br>
       <button class="primary-btn" id="rpsAgain" style="margin-top:12px">${a.rps.left > 0 ? "再玩一場 🔄" : "回好感度頁"}</button>
     </div>`;
@@ -4322,8 +4313,8 @@ function listenSettings() {
     fortuneToday = data.fortuneToday || null; // 今天的籤
     fortuneLog = data.fortuneLog || []; // 籤收藏冊
     affection = data.affection || {}; // 好感度
-    // 一次性:把今天的猜拳場數補回 3 場(用日期標記,只補一次)
-    const refillTag = "rps-refill-" + todayStr();
+    // 一次性:把今天的猜拳場數補回 3 場(用日期+版本標記,只補一次)
+    const refillTag = "rps-refill-v2-" + todayStr();
     if (data.rpsRefillDone !== refillTag) {
       const t = todayStr();
       Object.keys(affection).forEach(k => {
