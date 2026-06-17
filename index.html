@@ -605,6 +605,23 @@
   .aff-inter.locked{opacity:.45;cursor:not-allowed;border-color:#ddd;}
   .aff-inter.used{opacity:.5;cursor:default;}
 
+  /* ---------- 猜拳 ---------- */
+  .rps-box{
+    max-width:340px;margin:0 auto;background:var(--card);border-radius:16px;
+    box-shadow:var(--shadow);padding:18px;text-align:center;
+  }
+  .rps-info{font-size:.9rem;color:var(--ink-soft);font-weight:700;margin-bottom:12px;}
+  .rps-info b{color:var(--accent-2);}
+  .rps-tip{color:var(--ink-soft);font-size:.9rem;margin:8px 0;}
+  .rps-result{font-weight:800;font-size:1.05rem;line-height:1.6;margin:8px 0;color:var(--ink);}
+  .rps-hands{display:flex;gap:12px;justify-content:center;margin-top:8px;}
+  .rps-hand{
+    width:64px;height:64px;border-radius:16px;border:2px solid #ece2fb;
+    background:var(--card);font-size:2rem;cursor:pointer;transition:.12s;
+  }
+  .rps-hand:hover:not([disabled]){border-color:var(--accent-2);transform:scale(1.08);}
+  .rps-hand[disabled]{opacity:.4;cursor:not-allowed;}
+
   /* ---------- 貪吃蛇 ---------- */
   .snake-board{
     display:grid;gap:1px;max-width:360px;margin:0 auto 12px;aspect-ratio:1;
@@ -3778,12 +3795,14 @@ const AFF_INTERACTIONS = [
 ];
 
 function affOf(id) {
-  if (!affection[id]) affection[id] = { points: 0, lastDaily: "", tasks: { date: "", done: [] }, inter: { date: "", done: [] } };
+  if (!affection[id]) affection[id] = { points: 0, lastDaily: "", tasks: { date: "", done: [] }, inter: { date: "", done: [] }, rps: { date: "", left: 3, loss: 0 } };
   if (!affection[id].inter) affection[id].inter = { date: "", done: [] };
-  // 換日就清空今天的任務勾選 + 互動紀錄
+  if (!affection[id].rps) affection[id].rps = { date: "", left: 3, loss: 0 };
+  // 換日就清空今天的任務勾選 + 互動紀錄 + 猜拳場數
   const t = todayStr();
   if (affection[id].tasks.date !== t) affection[id].tasks = { date: t, done: [] };
   if (affection[id].inter.date !== t) affection[id].inter = { date: t, done: [] };
+  if (affection[id].rps.date !== t) affection[id].rps = { date: t, left: 3, loss: 0 };
   return affection[id];
 }
 function affLevel(points) { return Math.floor(points / AFF_LEVEL_STEP) + 1; }
@@ -3846,6 +3865,9 @@ function openAffection(id) {
     <div class="bd-section-title" style="margin-top:20px">互動 🔓</div>
     <div class="aff-inters" id="affInters"></div>
 
+    <div class="bd-section-title" style="margin-top:20px">跟他猜拳 🪙</div>
+    <div id="affRps"></div>
+
     <button class="ghost-btn" id="affBackPick" style="margin-top:16px;width:100%">← 換一位養</button>`;
 
   $("affDaily").onclick = () => {
@@ -3895,6 +3917,76 @@ function openAffection(id) {
     };
     intersEl.appendChild(row);
   });
+
+  // 猜拳 🪙(Lv.1 解鎖、一天最多 3 場)
+  renderRps(id, a, idol);
+}
+
+const RPS_HANDS = [
+  { key: "rock",     icon: "✊", name: "石頭" },
+  { key: "scissors", icon: "✌️", name: "剪刀" },
+  { key: "paper",    icon: "🖐️", name: "布" }
+];
+// 誰贏:回傳 win / lose / tie(以「我」的角度)
+function rpsJudge(me, foe) {
+  if (me === foe) return "tie";
+  if ((me === "rock" && foe === "scissors") ||
+      (me === "scissors" && foe === "paper") ||
+      (me === "paper" && foe === "rock")) return "win";
+  return "lose";
+}
+
+function renderRps(id, a, idol, lastResult) {
+  const el = $("affRps");
+  if (!el) return;
+  const r = a.rps;
+  el.innerHTML = `
+    <div class="rps-box">
+      <div class="rps-info">今天剩 <b>${r.left}</b> 場 · 輸 <b>${r.loss}</b>/3 場</div>
+      ${lastResult ? `<div class="rps-result">${lastResult}</div>` : `<div class="rps-tip">出一個跟 ${esc(idol.name)} 比!</div>`}
+      <div class="rps-hands">
+        ${RPS_HANDS.map(h => `<button class="rps-hand" data-hand="${h.key}" ${r.left <= 0 ? "disabled" : ""}>${h.icon}</button>`).join("")}
+      </div>
+      ${r.left <= 0 ? `<div class="rps-tip">今天 3 場玩完囉,明天再來 🌙</div>` : ""}
+    </div>`;
+  el.querySelectorAll("[data-hand]").forEach(b => {
+    if (r.left > 0) b.onclick = () => playRps(id, b.dataset.hand);
+  });
+}
+
+function playRps(id, myHand) {
+  const a = affOf(id);
+  const idol = idols.find(i => i.id === id);
+  if (a.rps.left <= 0) return;
+  a.rps.left--;
+  const foeHand = RPS_HANDS[Math.floor(Math.random() * 3)].key;
+  const result = rpsJudge(myHand, foeHand);
+  const myIcon = RPS_HANDS.find(h => h.key === myHand).icon;
+  const foeIcon = RPS_HANDS.find(h => h.key === foeHand).icon;
+
+  let msg = "", extra = "";
+  if (result === "win") {
+    a.points += 3;
+    sfx.correct();
+    msg = `你 ${myIcon} ＶＳ ${foeIcon} 他　🎉 你贏了!好感度 +3`;
+  } else if (result === "tie") {
+    sfx.tap();
+    msg = `你 ${myIcon} ＶＳ ${foeIcon} 他　🤝 平手!`;
+  } else {
+    a.rps.loss++;
+    sfx.wrong();
+    msg = `你 ${myIcon} ＶＳ ${foeIcon} 他　😅 你輸了`;
+    // 輸滿 3 場 → 扣 10,並把累積輸場數歸零
+    if (a.rps.loss >= 3) {
+      a.points = Math.max(0, a.points - 10);
+      a.rps.loss = 0;
+      extra = "<br>💔 輸滿 3 場,好感度 -10!";
+    }
+  }
+  saveAffection();
+  openAffection(id);
+  // 重畫後再把結果秀在猜拳區
+  setTimeout(() => renderRps(id, affOf(id), idol, msg + extra), 0);
 }
 
 function saveAffection() {
