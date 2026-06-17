@@ -3942,7 +3942,7 @@ const RPS_ROUNDS = 20;     // 一場 20 次
 const RPS_WIN_STEP = 5;    // 每贏 5 次 +3
 const RPS_WIN_PTS = 3;
 const RPS_MAX_LOSS = 3;    // 輸 3 次提早結束
-const RPS_PENALTY = 10;    // 輸滿 3 次扣 10
+const RPS_PENALTY = 5;     // 輸滿 3 次扣 5
 let rpsGame = null;        // 目前這場的狀態
 
 // 進入獨立猜拳遊戲頁
@@ -4322,6 +4322,16 @@ function listenSettings() {
     fortuneToday = data.fortuneToday || null; // 今天的籤
     fortuneLog = data.fortuneLog || []; // 籤收藏冊
     affection = data.affection || {}; // 好感度
+    // 一次性:把今天的猜拳場數補回 3 場(用日期標記,只補一次)
+    const refillTag = "rps-refill-" + todayStr();
+    if (data.rpsRefillDone !== refillTag) {
+      const t = todayStr();
+      Object.keys(affection).forEach(k => {
+        if (affection[k].rps) affection[k].rps = { date: t, left: 3, loss: 0 };
+      });
+      setDoc(doc(db, "users", uid, "settings", "prefs"),
+        { affection, rpsRefillDone: refillTag }, { merge: true });
+    }
     rerenderActiveList(); // 標準改了,文章徽章跟著更新
   });
 }
