@@ -593,6 +593,16 @@
   .aff-task.done{opacity:.5;cursor:default;}
   .aff-task-pts{color:var(--accent-2);font-weight:800;}
   .aff-pick{display:flex;flex-direction:column;}
+  .aff-inters{max-width:340px;margin:0 auto;display:flex;flex-direction:column;gap:8px;}
+  .aff-inter{
+    display:flex;justify-content:space-between;align-items:center;
+    background:var(--card);border:2px solid #ffd9ec;border-radius:14px;
+    padding:13px 16px;font-size:1rem;font-weight:700;color:var(--ink);
+    cursor:pointer;font-family:inherit;
+  }
+  .aff-inter:hover:not(.locked):not(.used){border-color:#ff5ea8;}
+  .aff-inter.locked{opacity:.45;cursor:not-allowed;border-color:#ddd;}
+  .aff-inter.used{opacity:.5;cursor:default;}
   .gacha-machine{text-align:center;margin-bottom:16px;}
   .gacha-top{font-size:3.5rem;margin-bottom:8px;}
   .gacha-btn{font-size:1.2rem;padding:14px 36px;}
@@ -3570,12 +3580,21 @@ const AFF_TASKS = [
   { id: "share", label: "跟朋友分享他", pts: 3 },
   { id: "song",  label: "聽他唱的歌", pts: 2 }
 ];
+// 升級解鎖的互動(每個每天一次)
+const AFF_INTERACTIONS = [
+  { id: "pat",   icon: "🤚", label: "摸摸他",   lv: 2, pts: 2, reply: "他笑了 😊" },
+  { id: "feed",  icon: "🍚", label: "餵他吃飯", lv: 4, pts: 3, reply: "他吃得好開心!🍴" },
+  { id: "gift",  icon: "🎁", label: "送禮物",   lv: 6, pts: 3, reply: "他超喜歡這個禮物!🥰" },
+  { id: "music", icon: "🎵", label: "一起聽歌", lv: 8, pts: 3, reply: "你們一起聽歌,好幸福 🎶" }
+];
 
 function affOf(id) {
-  if (!affection[id]) affection[id] = { points: 0, lastDaily: "", tasks: { date: "", done: [] } };
-  // 換日就清空今天的任務勾選
+  if (!affection[id]) affection[id] = { points: 0, lastDaily: "", tasks: { date: "", done: [] }, inter: { date: "", done: [] } };
+  if (!affection[id].inter) affection[id].inter = { date: "", done: [] };
+  // 換日就清空今天的任務勾選 + 互動紀錄
   const t = todayStr();
   if (affection[id].tasks.date !== t) affection[id].tasks = { date: t, done: [] };
+  if (affection[id].inter.date !== t) affection[id].inter = { date: t, done: [] };
   return affection[id];
 }
 function affLevel(points) { return Math.floor(points / AFF_LEVEL_STEP) + 1; }
@@ -3635,6 +3654,9 @@ function openAffection(id) {
     <div class="bd-section-title" style="margin-top:20px">今日任務 💬</div>
     <div class="aff-tasks" id="affTasks"></div>
 
+    <div class="bd-section-title" style="margin-top:20px">互動 🔓</div>
+    <div class="aff-inters" id="affInters"></div>
+
     <button class="ghost-btn" id="affBackPick" style="margin-top:16px;width:100%">← 換一位養</button>`;
 
   $("affDaily").onclick = () => {
@@ -3661,6 +3683,28 @@ function openAffection(id) {
       toast(`完成任務 +${task.pts} 💕`);
     };
     tasksEl.appendChild(row);
+  });
+
+  // 互動(升級解鎖、每天一次)
+  const intersEl = $("affInters");
+  AFF_INTERACTIONS.forEach(it => {
+    const unlocked = lv >= it.lv;
+    const usedToday = a.inter.done.includes(it.id);
+    const row = document.createElement("button");
+    row.className = "aff-inter" + (!unlocked ? " locked" : "") + (usedToday ? " used" : "");
+    if (!unlocked) {
+      row.innerHTML = `<span>🔒 ${it.icon} ${esc(it.label)}</span><span class="aff-task-pts">Lv.${it.lv} 解鎖</span>`;
+    } else {
+      row.innerHTML = `<span>${it.icon} ${esc(it.label)}</span><span class="aff-task-pts">${usedToday ? "今天玩過了 🌙" : "+" + it.pts}</span>`;
+    }
+    if (unlocked && !usedToday) row.onclick = () => {
+      a.inter.done.push(it.id);
+      a.points += it.pts;
+      saveAffection();
+      openAffection(id);
+      toast(`${it.reply} +${it.pts} 💕`);
+    };
+    intersEl.appendChild(row);
   });
 }
 
