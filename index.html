@@ -205,9 +205,11 @@
   .menu-pop{
     display:none;position:absolute;right:0;top:36px;background:#fff;
     border-radius:14px;box-shadow:0 10px 28px rgba(0,0,0,.18);
-    min-width:120px;overflow:hidden;
+    min-width:120px;overflow-y:auto;max-height:70vh;z-index:50;
   }
+  body.dark .menu-pop{background:#2a2440;}
   .menu-pop.show{display:block;}
+  .menu-pop.flip-up{top:auto;bottom:36px;}
   .photo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
   .photo-grid .ph{
     position:relative;aspect-ratio:1;border-radius:12px;overflow:hidden;background:#f0eafa;
@@ -1508,8 +1510,13 @@ function renderCards() {
     e.stopPropagation();
     const pop = document.getElementById("menu-" + b.dataset.menu);
     const wasOpen = pop.classList.contains("show");
-    document.querySelectorAll(".menu-pop").forEach(p => p.classList.remove("show"));
-    if (!wasOpen) pop.classList.add("show");
+    document.querySelectorAll(".menu-pop").forEach(p => p.classList.remove("show", "flip-up"));
+    if (!wasOpen) {
+      pop.classList.add("show");
+      // 如果選單往下會超出畫面,改成往上彈
+      const rect = pop.getBoundingClientRect();
+      if (rect.bottom > window.innerHeight - 10) pop.classList.add("flip-up");
+    }
   });
   grid.querySelectorAll("[data-profile]").forEach(b => b.onclick = () => openProfile(b.dataset.profile));
   grid.querySelectorAll("[data-photos]").forEach(b => b.onclick = () => openPhotoManager(b.dataset.photos));
