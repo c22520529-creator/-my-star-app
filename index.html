@@ -628,6 +628,13 @@
   .shop-head{text-align:center;font-weight:900;font-size:1.2rem;margin-bottom:14px;line-height:1.8;}
   .shop-coins{font-size:.95rem;color:var(--ink-soft);font-weight:700;}
   .shop-coins b{color:var(--accent-2);font-size:1.15rem;}
+  .shop-tabs{display:flex;gap:8px;justify-content:center;margin-bottom:12px;}
+  .shop-tab{
+    padding:8px 22px;border-radius:999px;border:2px solid #ece2fb;
+    background:var(--card);font-weight:800;color:var(--ink-soft);
+    cursor:pointer;font-family:inherit;font-size:.95rem;
+  }
+  .shop-tab.on{background:var(--accent-2);color:#fff;border-color:var(--accent-2);}
   .shop-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:420px;margin:0 auto;}
   .shop-item{
     background:var(--card);border:2px solid #ece2fb;border-radius:14px;
@@ -4101,6 +4108,7 @@ function openAffection(id) {
     const unlocked = lv >= it.lv;
     const gotToday = a.inter.done.includes(it.id); // 今天是否已經加過分
     const isFeed = it.id === "feed"; // 餵飯特別:從背包選食物
+    const isGift = it.id === "gift"; // 送禮物特別:從禮物背包選
     const row = document.createElement("button");
     row.className = "aff-inter" + (!unlocked ? " locked" : "");
     if (!unlocked) {
@@ -4109,11 +4117,16 @@ function openAffection(id) {
       // 餵飯顯示背包食物總數
       const bagCount = Object.values(a.bag).reduce((s, n) => s + n, 0);
       row.innerHTML = `<span>${it.icon} ${esc(it.label)}</span><span class="aff-task-pts">🎒 ${bagCount} 個食物</span>`;
+    } else if (isGift) {
+      // 送禮物顯示禮物背包總數
+      const giftCount = Object.values(a.giftBag).reduce((s, n) => s + n, 0);
+      row.innerHTML = `<span>${it.icon} ${esc(it.label)}</span><span class="aff-task-pts">🎁 ${giftCount} 個禮物</span>`;
     } else {
       row.innerHTML = `<span>${it.icon} ${esc(it.label)}</span><span class="aff-task-pts">${gotToday ? "今天加過分了 💗" : "+" + it.pts}</span>`;
     }
     if (unlocked) row.onclick = () => {
       if (isFeed) { openFeed(id); return; } // 餵飯 → 開背包
+      if (isGift) { openGift(id); return; } // 送禮物 → 開禮物背包
       if (!a.inter.done.includes(it.id)) {
         // 今天第一次 → 加分
         a.inter.done.push(it.id);
@@ -4258,7 +4271,8 @@ function saveAffection() {
 }
 
 /* ================== 超市 🛒 ================== */
-function openShop(id) {
+function openShop(id, tab) {
+  tab = tab || "food"; // 預設食物分頁
   const idol = idols.find(i => i.id === id);
   const a = affOf(id);
   const area = $("affectionArea");
@@ -4267,22 +4281,30 @@ function openShop(id) {
       🛒 ${esc(idol.name)} 的超市<br>
       <span class="shop-coins">💰 錢包：<b>${a.coins}</b> 元</span>
     </div>
+    <div class="shop-tabs">
+      <button class="shop-tab ${tab === "food" ? "on" : ""}" id="tabFood">🍚 食物</button>
+      <button class="shop-tab ${tab === "gift" ? "on" : ""}" id="tabGift">🎁 禮物</button>
+    </div>
     <div class="shop-grid" id="shopGrid"></div>
     <button class="ghost-btn" id="shopBack" style="margin-top:16px;width:100%">← 回好感度頁</button>`;
   const grid = $("shopGrid");
-  FOODS.forEach(f => {
-    const owned = a.bag[f.id] || 0;
-    const afford = a.coins >= f.price;
+  const list = tab === "food" ? FOODS : GIFTS;
+  const bag = tab === "food" ? a.bag : a.giftBag;
+  list.forEach(item => {
+    const owned = bag[item.id] || 0;
+    const afford = a.coins >= item.price;
     const cell = document.createElement("button");
     cell.className = "shop-item" + (afford ? "" : " cant");
     cell.innerHTML = `
-      <div class="shop-emoji">${f.icon}</div>
-      <div class="shop-name">${esc(f.name)}</div>
-      <div class="shop-price">💰 ${f.price}　+${f.pts}💕</div>
+      <div class="shop-emoji">${item.icon}</div>
+      <div class="shop-name">${esc(item.name)}</div>
+      <div class="shop-price">💰 ${item.price}　+${item.pts}💕</div>
       ${owned > 0 ? `<div class="shop-owned">擁有 ${owned}</div>` : ""}`;
-    cell.onclick = () => buyFood(id, f.id);
+    cell.onclick = () => tab === "food" ? buyFood(id, item.id) : buyGift(id, item.id);
     grid.appendChild(cell);
   });
+  $("tabFood").onclick = () => openShop(id, "food");
+  $("tabGift").onclick = () => openShop(id, "gift");
   $("shopBack").onclick = () => openAffection(id);
 }
 
@@ -4294,8 +4316,20 @@ function buyFood(id, fid) {
   a.bag[fid] = (a.bag[fid] || 0) + 1;
   sfx.correct();
   saveAffection();
-  openShop(id); // 重畫,更新錢包和擁有數
+  openShop(id, "food");
   toast(`買了 ${f.icon} ${f.name}!💰 剩 ${a.coins} 元`);
+}
+
+function buyGift(id, gid) {
+  const a = affOf(id);
+  const g = giftById(gid);
+  if (a.coins < g.price) { toast(`錢不夠喔!還差 ${g.price - a.coins} 元 💰`); sfx.wrong(); return; }
+  a.coins -= g.price;
+  a.giftBag[gid] = (a.giftBag[gid] || 0) + 1;
+  sfx.correct();
+  saveAffection();
+  openShop(id, "gift");
+  toast(`買了 ${g.icon} ${g.name}!💰 剩 ${a.coins} 元`);
 }
 
 /* ================== 餵食(從背包選) 🍚 ================== */
@@ -4336,6 +4370,45 @@ function feedFood(id, fid) {
   saveAffection();
   openFeed(id); // 重畫背包
   toast(`${f.icon} 好好吃!${esc(idols.find(i=>i.id===id).name)} 好感度 +${f.pts} 💕`);
+}
+
+/* ================== 送禮物(從禮物背包選) 🎁 ================== */
+function openGift(id) {
+  const idol = idols.find(i => i.id === id);
+  const a = affOf(id);
+  const area = $("affectionArea");
+  const owned = GIFTS.filter(g => (a.giftBag[g.id] || 0) > 0);
+  let body;
+  if (owned.length === 0) {
+    body = `<div class="empty">還沒有禮物~<br>先去 🛒 超市的「🎁 禮物」分頁買吧!</div>`;
+  } else {
+    body = `<div class="shop-grid">` + owned.map(g => `
+      <button class="shop-item" data-gift="${g.id}">
+        <div class="shop-emoji">${g.icon}</div>
+        <div class="shop-name">${esc(g.name)}</div>
+        <div class="shop-price">+${g.pts}💕</div>
+        <div class="shop-owned">${a.giftBag[g.id]}</div>
+      </button>`).join("") + `</div>`;
+  }
+  area.innerHTML = `
+    <div class="shop-head">🎁 送禮物給 ${esc(idol.name)}<br><span class="shop-coins">選一個禮物送他</span></div>
+    ${body}
+    <button class="ghost-btn" id="giftBack" style="margin-top:16px;width:100%">← 回好感度頁</button>`;
+  area.querySelectorAll("[data-gift]").forEach(b => b.onclick = () => giveGift(id, b.dataset.gift));
+  $("giftBack").onclick = () => openAffection(id);
+}
+
+function giveGift(id, gid) {
+  const a = affOf(id);
+  const g = giftById(gid);
+  if ((a.giftBag[gid] || 0) <= 0) return;
+  a.giftBag[gid]--;
+  if (a.giftBag[gid] <= 0) delete a.giftBag[gid];
+  a.points += g.pts; // 送了就加好感度
+  sfx.correct();
+  saveAffection();
+  openGift(id);
+  toast(`${g.icon} 送出去了!${esc(idols.find(i=>i.id===id).name)} 好感度 +${g.pts} 🥰`);
 }
 
 /* ================== 貪吃蛇 🐍 ================== */
