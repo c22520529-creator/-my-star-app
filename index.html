@@ -764,6 +764,47 @@
   .letter-saved{border-radius:12px;padding:12px 14px;box-shadow:var(--shadow);text-align:left;}
   .letter-saved-date{font-size:.75rem;opacity:.7;margin-bottom:4px;}
   .letter-saved-text{font-size:.9rem;line-height:1.6;white-space:pre-wrap;word-break:break-word;}
+
+  /* ---------- 應援打 call 機 ---------- */
+  .cheer-intro{max-width:320px;margin:20px auto 0;}
+  .cheer-hud{
+    display:flex;justify-content:space-around;align-items:center;max-width:340px;
+    margin:0 auto 10px;font-weight:800;color:var(--ink);font-size:.95rem;
+  }
+  .cheer-hud b{color:var(--accent-2);}
+  .cheer-stage{
+    position:relative;width:340px;max-width:94%;height:360px;margin:0 auto;
+    border-radius:18px;overflow:hidden;box-shadow:var(--shadow);
+    background:linear-gradient(180deg,#2d2a6e 0%,#5b3a8a 100%);
+  }
+  .cheer-line{
+    position:absolute;left:0;right:0;top:300px;height:4px;
+    background:rgba(255,255,255,.7);box-shadow:0 0 12px rgba(255,255,255,.8);
+  }
+  .cheer-line::after{
+    content:"👆 點這裡";position:absolute;right:8px;top:6px;
+    color:rgba(255,255,255,.8);font-size:.7rem;font-weight:700;
+  }
+  .cheer-note{
+    position:absolute;width:44px;height:44px;font-size:2rem;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+    filter:drop-shadow(0 2px 4px rgba(0,0,0,.3));transform:translateX(-50%);
+    user-select:none;
+  }
+  .cheer-hit-note{animation:cheerHit .2s ease forwards;}
+  @keyframes cheerHit{to{transform:translateX(-50%) scale(1.8);opacity:0;}}
+  .cheer-miss-note{animation:cheerMiss .2s ease forwards;}
+  @keyframes cheerMiss{to{opacity:0;transform:translateX(-50%) scale(.5);}}
+  .cheer-judge{
+    position:absolute;top:200px;left:50%;transform:translateX(-50%) scale(.5);
+    font-size:1.8rem;font-weight:900;color:#fff;opacity:0;pointer-events:none;
+    text-shadow:0 2px 8px rgba(0,0,0,.4);
+  }
+  .cheer-judge.show{animation:judgePop .4s ease;}
+  @keyframes judgePop{0%{opacity:0;transform:translateX(-50%) scale(.5);}30%{opacity:1;transform:translateX(-50%) scale(1.2);}100%{opacity:0;transform:translateX(-50%) scale(1);}}
+  .cheer-rank{font-size:1.6rem;font-weight:900;color:var(--accent-2);margin-bottom:8px;}
+  .cheer-result-stats{font-size:.9rem;line-height:1.7;color:var(--ink-soft);font-weight:700;}
+  .cheer-result-stats b{color:var(--accent-2);}
   .aff-inter{
     display:flex;justify-content:space-between;align-items:center;
     background:var(--card);border:2px solid #ffd9ec;border-radius:14px;
@@ -4057,13 +4098,26 @@ function drawFortuneBook() {
 const AFF_LEVEL_STEP = 20; // 每 20 點升一級
 const RPS_DAILY = 5;       // 每天可玩幾場猜拳
 const AFF_MSGS = [
-  "你們的故事才剛開始 🌱",
-  "你開始更了解他了 💗",
-  "你是他很重要的粉絲 ✨",
-  "你們的羈絆越來越深 💕",
-  "你是他最忠實的粉絲! 🌟",
-  "命中注定的應援關係 💖",
-  "傳說級的真愛粉! 👑"
+  "你們的故事才剛開始 🌱",          // Lv.1
+  "你開始更了解他了 💗",            // Lv.2
+  "你是他很重要的粉絲 ✨",          // Lv.3
+  "你們的羈絆越來越深 💕",          // Lv.4
+  "你是他最忠實的粉絲! 🌟",         // Lv.5
+  "命中注定的應援關係 💖",          // Lv.6
+  "傳說級的真愛粉! 👑",             // Lv.7
+  "你們是天生一對的靈魂 💫",        // Lv.8
+  "你們是天生一對的靈魂 💫",        // Lv.9
+  "宇宙級的超級後援會長 🌌",        // Lv.10
+  "宇宙級的超級後援會長 🌌",        // Lv.11
+  "他生命中最閃耀的存在 ⭐",        // Lv.12
+  "他生命中最閃耀的存在 ⭐",        // Lv.13
+  "他生命中最閃耀的存在 ⭐",        // Lv.14
+  "跨越時空的命運羈絆 💞",          // Lv.15
+  "跨越時空的命運羈絆 💞",          // Lv.16
+  "跨越時空的命運羈絆 💞",          // Lv.17
+  "跨越時空的命運羈絆 💞",          // Lv.18
+  "跨越時空的命運羈絆 💞",          // Lv.19
+  "傳說中的本命真神級粉絲 🌟"        // Lv.20(以上)
 ];
 // 每日任務清單(固定幾個)
 const AFF_TASKS = [
@@ -4082,6 +4136,7 @@ const AFF_INTERACTIONS = [
   { id: "pet",   icon: "🐾", label: "養寵物",   lv: 6,  pts: 3, reply: "你們一起照顧寵物 🐾" },
   { id: "dessert",icon: "🧁", label: "裝飾甜點", lv: 6, pts: 3, reply: "你做了一個可愛的甜點給他 🧁" },
   { id: "music", icon: "🎵", label: "一起聽歌", lv: 8,  pts: 3, reply: "你們一起聽歌,好幸福 🎶" },
+  { id: "cheer", icon: "📣", label: "應援打call機", lv: 8, pts: 4, reply: "你幫他打了一場超棒的應援 📣" },
   { id: "bday",  icon: "🎂", label: "幫他慶生", lv: 8,  pts: 4, reply: "你幫他辦了一場生日派對 🎉" },
   { id: "draw",  icon: "🎨", label: "一起畫畫", lv: 10, pts: 3, reply: "你們一起畫畫,好開心 🎨" },
   { id: "cook",  icon: "🍳", label: "幫他做飯", lv: 10, pts: 4, reply: "你做了一道料理給他 🍳" },
@@ -4409,6 +4464,7 @@ function openAffection(id) {
     const isStar = it.id === "star"; // 看星星特別:開夜空
     const isLetter = it.id === "letter"; // 寫信特別:開信紙
     const isDessert = it.id === "dessert"; // 裝飾甜點特別:開裝飾台
+    const isCheer = it.id === "cheer"; // 打call特別:開遊戲
     const row = document.createElement("button");
     row.className = "aff-inter" + (!unlocked ? " locked" : "");
     if (!unlocked) {
@@ -4438,6 +4494,8 @@ function openAffection(id) {
       row.innerHTML = `<span>${it.icon} ${esc(it.label)}</span><span class="aff-task-pts">${gotToday ? "今天加過分了 💗" : "寫信 💌"}</span>`;
     } else if (isDessert) {
       row.innerHTML = `<span>${it.icon} ${esc(it.label)}</span><span class="aff-task-pts">${gotToday ? "今天加過分了 💗" : "裝飾 🧁"}</span>`;
+    } else if (isCheer) {
+      row.innerHTML = `<span>${it.icon} ${esc(it.label)}</span><span class="aff-task-pts">${gotToday ? "今天加過分了 💗" : "開始 📣"}</span>`;
     } else {
       row.innerHTML = `<span>${it.icon} ${esc(it.label)}</span><span class="aff-task-pts">${gotToday ? "今天加過分了 💗" : "+" + it.pts}</span>`;
     }
@@ -4452,6 +4510,7 @@ function openAffection(id) {
       if (isStar) { openStar(id); return; } // 看星星 → 開夜空
       if (isLetter) { openLetter(id); return; } // 寫信 → 開信紙
       if (isDessert) { openDessert(id); return; } // 裝飾甜點 → 開裝飾台
+      if (isCheer) { openCheer(id); return; } // 打call → 開遊戲
       if (!a.inter.done.includes(it.id)) {
         // 今天第一次 → 加分
         a.inter.done.push(it.id);
@@ -5632,6 +5691,182 @@ function finishDessert(id) {
     </div>`;
   $("dessertAgain").onclick = () => openDessert(id);
   $("dessertHome").onclick = () => openAffection(id);
+}
+
+/* ================== 應援打 call 機 📣 ================== */
+const CHEER_EMOJIS = ["💖","⭐","🎀","✨","💕","🌟","📣","🎉"];
+const CHEER_WORDS = ["余悸最棒!","加油!","我愛你!","你最閃亮!","應援!","衝啊!"];
+let cheerState = null;
+
+function openCheer(id) {
+  const idol = idols.find(i => i.id === id);
+  const area = $("affectionArea");
+  area.innerHTML = `
+    <div class="selfie-head">📣 幫 ${esc(idol.emoji || "")} ${esc(idol.name)} 打 call</div>
+    <div class="cheer-intro">
+      <p style="text-align:center;line-height:1.8;color:var(--ink-soft)">
+        圈圈掉到<b style="color:var(--accent-2)">底線</b>時點它!<br>
+        點越準分數越高 ✨<br>越多 Perfect,余悸越開心 📣
+      </p>
+    </div>
+    <button class="primary-btn" id="cheerStart" style="width:100%;margin-top:12px">📣 開始應援!</button>
+    <button class="ghost-btn" id="cheerBack" style="width:100%;margin-top:8px">← 回好感度頁</button>`;
+  $("cheerStart").onclick = () => startCheer(id);
+  $("cheerBack").onclick = () => openAffection(id);
+}
+
+function startCheer(id) {
+  const idol = idols.find(i => i.id === id);
+  const area = $("affectionArea");
+  area.innerHTML = `
+    <div class="cheer-hud">
+      <span>分數 <b id="cheerScore">0</b></span>
+      <span>連擊 <b id="cheerCombo">0</b></span>
+      <span id="cheerTime">15</span>秒
+    </div>
+    <div class="cheer-stage" id="cheerStage">
+      <div class="cheer-line" id="cheerLine"></div>
+      <div class="cheer-judge" id="cheerJudge"></div>
+    </div>`;
+
+  cheerState = {
+    id, score: 0, combo: 0, maxCombo: 0, perfect: 0, good: 0, miss: 0,
+    notes: [], running: true, time: 15,
+    spawnTimer: null, raf: null, countTimer: null
+  };
+
+  const stage = $("cheerStage");
+  const lineY = 300;  // 底線位置
+  const fallTime = 1800; // 圈圈從上掉到底線要多久(ms)
+
+  // 倒數計時
+  cheerState.countTimer = setInterval(() => {
+    cheerState.time--;
+    const t = $("cheerTime");
+    if (t) t.textContent = cheerState.time;
+    if (cheerState.time <= 0) endCheer(id);
+  }, 1000);
+
+  // 每隔一段時間掉一個圈圈
+  function spawn() {
+    if (!cheerState.running) return;
+    const note = document.createElement("div");
+    note.className = "cheer-note";
+    note.textContent = CHEER_EMOJIS[Math.floor(Math.random() * CHEER_EMOJIS.length)];
+    const xPct = 10 + Math.random() * 75; // 左右隨機
+    note.style.left = xPct + "%";
+    note.style.top = "-40px";
+    const noteObj = { el: note, born: performance.now(), hit: false };
+    note.onclick = () => judgeNote(noteObj, lineY, fallTime);
+    stage.appendChild(note);
+    cheerState.notes.push(noteObj);
+    // 下一個圈圈的間隔(隨機,有節奏感)
+    cheerState.spawnTimer = setTimeout(spawn, 550 + Math.random() * 400);
+  }
+  spawn();
+
+  // 動畫:讓圈圈往下掉
+  function tick(now) {
+    if (!cheerState.running) return;
+    cheerState.notes.forEach(n => {
+      if (n.hit) return;
+      const prog = (now - n.born) / fallTime; // 0~1
+      const y = prog * lineY;
+      n.el.style.top = y + "px";
+      // 掉超過底線太多 → miss
+      if (prog > 1.25 && !n.hit) {
+        n.hit = true;
+        n.el.classList.add("cheer-miss-note");
+        setTimeout(() => n.el.remove(), 200);
+        cheerState.combo = 0;
+        cheerState.miss++;
+        updateCheerHud();
+      }
+    });
+    cheerState.raf = requestAnimationFrame(tick);
+  }
+  cheerState.raf = requestAnimationFrame(tick);
+}
+
+function judgeNote(n, lineY, fallTime) {
+  if (n.hit || !cheerState.running) return;
+  n.hit = true;
+  const prog = (performance.now() - n.born) / fallTime;
+  const diff = Math.abs(prog - 1); // 離底線多近(0 = 完美)
+  let judge, pts;
+  if (diff < 0.08) { judge = "PERFECT!"; pts = 100; cheerState.perfect++; }
+  else if (diff < 0.18) { judge = "GOOD!"; pts = 60; cheerState.good++; }
+  else { judge = "OK"; pts = 30; }
+  cheerState.score += pts + cheerState.combo * 2; // 連擊有加成
+  cheerState.combo++;
+  cheerState.maxCombo = Math.max(cheerState.maxCombo, cheerState.combo);
+  sfx.tap();
+  showJudge(judge);
+  // 圈圈消失動畫
+  n.el.classList.add("cheer-hit-note");
+  setTimeout(() => n.el.remove(), 200);
+  updateCheerHud();
+}
+
+function showJudge(text) {
+  const j = $("cheerJudge");
+  if (!j) return;
+  j.textContent = text;
+  j.className = "cheer-judge show";
+  void j.offsetWidth;
+  setTimeout(() => { j.className = "cheer-judge"; }, 400);
+}
+
+function updateCheerHud() {
+  const s = $("cheerScore"), c = $("cheerCombo");
+  if (s) s.textContent = cheerState.score;
+  if (c) c.textContent = cheerState.combo;
+}
+
+function endCheer(id) {
+  cheerState.running = false;
+  clearTimeout(cheerState.spawnTimer);
+  clearInterval(cheerState.countTimer);
+  cancelAnimationFrame(cheerState.raf);
+  // 清掉剩下的圈圈
+  cheerState.notes.forEach(n => n.el.remove());
+
+  const a = affOf(id);
+  const idol = idols.find(i => i.id === id);
+  const it = AFF_INTERACTIONS.find(x => x.id === "cheer");
+  const photo = (idol.gallery && idol.gallery[0]) || idol.photoData || idol.photoUrl;
+  let added = 0;
+  if (!a.inter.done.includes("cheer")) {
+    a.inter.done.push("cheer");
+    a.points += it.pts;
+    added = it.pts;
+    saveAffection();
+  }
+  sfx.win();
+  // 評價
+  const sc = cheerState.score;
+  let rank = sc >= 2500 ? "S 完美應援! 🏆" : sc >= 1500 ? "A 超棒! 🌟" : sc >= 700 ? "B 不錯! 💪" : "C 再加油! 💗";
+  const word = CHEER_WORDS[Math.floor(Math.random() * CHEER_WORDS.length)];
+  const area = $("affectionArea");
+  area.innerHTML = `
+    <div class="gift-react">
+      <div class="gift-react-stage">
+        ${photo ? `<img class="gift-react-photo" src="${esc(photo)}" alt="">` : `<div class="gift-react-emoji">${esc(idol.emoji || "💖")}</div>`}
+        <div class="gift-react-item">📣</div>
+      </div>
+      <div class="cheer-rank">${rank}</div>
+      <div class="cheer-result-stats">
+        分數 <b>${sc}</b>　最高連擊 <b>${cheerState.maxCombo}</b><br>
+        ✨ Perfect ${cheerState.perfect}　👍 Good ${cheerState.good}　💔 Miss ${cheerState.miss}
+      </div>
+      <div class="gift-react-msg" style="margin-top:10px">「${esc(word)} ${esc(idol.name)} 聽到你的應援,超感動! 🥹」</div>
+      <div class="gift-react-pts">${added > 0 ? `好感度 +${added} 📣` : "今天加過分了 💗"}</div>
+      <button class="primary-btn" id="cheerAgain" style="margin-top:16px">再打一次 📣</button>
+      <button class="ghost-btn" id="cheerHome" style="margin-top:8px;width:100%">回好感度頁</button>
+    </div>`;
+  if (sc >= 1500) startConfetti();
+  $("cheerAgain").onclick = () => startCheer(id);
+  $("cheerHome").onclick = () => openAffection(id);
 }
 
 /* ================== 貪吃蛇 🐍 ================== */
