@@ -4080,6 +4080,7 @@ const AFF_INTERACTIONS = [
   { id: "letter",icon: "💌", label: "寫信給他", lv: 4, pts: 3, reply: "他收到你的信,好感動 🥹" },
   { id: "gift",  icon: "🎁", label: "送禮物",   lv: 6,  pts: 3, reply: "他超喜歡這個禮物!🥰" },
   { id: "pet",   icon: "🐾", label: "養寵物",   lv: 6,  pts: 3, reply: "你們一起照顧寵物 🐾" },
+  { id: "dessert",icon: "🧁", label: "裝飾甜點", lv: 6, pts: 3, reply: "你做了一個可愛的甜點給他 🧁" },
   { id: "music", icon: "🎵", label: "一起聽歌", lv: 8,  pts: 3, reply: "你們一起聽歌,好幸福 🎶" },
   { id: "bday",  icon: "🎂", label: "幫他慶生", lv: 8,  pts: 4, reply: "你幫他辦了一場生日派對 🎉" },
   { id: "draw",  icon: "🎨", label: "一起畫畫", lv: 10, pts: 3, reply: "你們一起畫畫,好開心 🎨" },
@@ -4190,7 +4191,27 @@ const GIFTS = [
   { id: "phone",     icon: "📱", name: "手機",     price: 110, pts: 6 },
   { id: "diamond",   icon: "💎", name: "鑽石",     price: 120, pts: 7 },
   { id: "console",   icon: "🎮", name: "遊戲機",   price: 130, pts: 7 },
-  { id: "piano",     icon: "🎹", name: "鋼琴",     price: 150, pts: 8 }
+  { id: "piano",     icon: "🎹", name: "鋼琴",     price: 150, pts: 8 },
+  { id: "rose",      icon: "🌹", name: "玫瑰",     price: 45, pts: 3 },
+  { id: "tulip",     icon: "🌷", name: "鬱金香",   price: 45, pts: 3 },
+  { id: "chick",     icon: "🐥", name: "小雞玩偶", price: 55, pts: 3 },
+  { id: "cat",       icon: "🐱", name: "貓咪玩偶", price: 55, pts: 3 },
+  { id: "penguin",   icon: "🐧", name: "企鵝玩偶", price: 55, pts: 3 },
+  { id: "candle",    icon: "🕯️", name: "香氛蠟燭", price: 60, pts: 3 },
+  { id: "lipstick",  icon: "💄", name: "口紅",     price: 65, pts: 4 },
+  { id: "perfume",   icon: "🧴", name: "香水",     price: 75, pts: 4 },
+  { id: "dress",     icon: "👗", name: "洋裝",     price: 80, pts: 4 },
+  { id: "highheel",  icon: "👠", name: "高跟鞋",   price: 85, pts: 4 },
+  { id: "necklace",  icon: "📿", name: "項鍊",     price: 88, pts: 5 },
+  { id: "purse",     icon: "👛", name: "錢包",     price: 70, pts: 4 },
+  { id: "camera",    icon: "📸", name: "相機",     price: 100, pts: 6 },
+  { id: "guitar",    icon: "🎸", name: "吉他",     price: 120, pts: 6 },
+  { id: "violin",    icon: "🎻", name: "小提琴",   price: 130, pts: 7 },
+  { id: "laptop",    icon: "💻", name: "筆電",     price: 130, pts: 7 },
+  { id: "car",       icon: "🚗", name: "玩具車",   price: 75, pts: 4 },
+  { id: "cake_gift", icon: "🎂", name: "生日蛋糕", price: 70, pts: 4 },
+  { id: "trophy",    icon: "🏆", name: "獎盃",     price: 95, pts: 5 },
+  { id: "gem",       icon: "💝", name: "愛心禮盒", price: 90, pts: 5 }
 ];
 function giftById(gid) { return GIFTS.find(g => g.id === gid); }
 
@@ -4387,6 +4408,7 @@ function openAffection(id) {
     const isPet = it.id === "pet"; // 養寵物特別:開寵物
     const isStar = it.id === "star"; // 看星星特別:開夜空
     const isLetter = it.id === "letter"; // 寫信特別:開信紙
+    const isDessert = it.id === "dessert"; // 裝飾甜點特別:開裝飾台
     const row = document.createElement("button");
     row.className = "aff-inter" + (!unlocked ? " locked" : "");
     if (!unlocked) {
@@ -4414,6 +4436,8 @@ function openAffection(id) {
       row.innerHTML = `<span>${it.icon} ${esc(it.label)}</span><span class="aff-task-pts">${gotToday ? "今天加過分了 💗" : "看夜空 🌌"}</span>`;
     } else if (isLetter) {
       row.innerHTML = `<span>${it.icon} ${esc(it.label)}</span><span class="aff-task-pts">${gotToday ? "今天加過分了 💗" : "寫信 💌"}</span>`;
+    } else if (isDessert) {
+      row.innerHTML = `<span>${it.icon} ${esc(it.label)}</span><span class="aff-task-pts">${gotToday ? "今天加過分了 💗" : "裝飾 🧁"}</span>`;
     } else {
       row.innerHTML = `<span>${it.icon} ${esc(it.label)}</span><span class="aff-task-pts">${gotToday ? "今天加過分了 💗" : "+" + it.pts}</span>`;
     }
@@ -4427,6 +4451,7 @@ function openAffection(id) {
       if (isPet) { openPet(id); return; } // 養寵物 → 開寵物
       if (isStar) { openStar(id); return; } // 看星星 → 開夜空
       if (isLetter) { openLetter(id); return; } // 寫信 → 開信紙
+      if (isDessert) { openDessert(id); return; } // 裝飾甜點 → 開裝飾台
       if (!a.inter.done.includes(it.id)) {
         // 今天第一次 → 加分
         a.inter.done.push(it.id);
@@ -5488,6 +5513,120 @@ function openLetterBox(id) {
     <div class="letter-box-list">${list}</div>
     <button class="ghost-btn" id="letterBoxBack" style="width:100%;margin-top:12px">← 回寫信</button>`;
   $("letterBoxBack").onclick = () => openLetter(id);
+}
+
+/* ================== 裝飾甜點 🧁 ================== */
+const DESSERT_BASES = ["🧁", "🍰", "🍩", "🍪", "🎂", "🥧"];      // 甜點底
+const DESSERT_TOPS = ["🍓","🍒","🫐","🍫","🥝","🍯","🌰","🍬","🌸","⭐","💖","🍡","🥜","🍃","✨","🧇"]; // 裝飾
+let dessertState = null;
+
+function openDessert(id) {
+  const idol = idols.find(i => i.id === id);
+  const area = $("affectionArea");
+  dessertState = { id, base: DESSERT_BASES[0], tops: [] };
+  area.innerHTML = `
+    <div class="selfie-head">🧁 做甜點給 ${esc(idol.emoji || "")} ${esc(idol.name)} 吃</div>
+    <div class="bday-stage" id="dessertStage">
+      <div class="bday-cake" id="dessertBase">${dessertState.base}</div>
+      <div class="selfie-layer" id="dessertLayer"></div>
+    </div>
+    <div class="selfie-tip">選甜點 🍰</div>
+    <div class="selfie-stickers" id="dessertBases"></div>
+    <div class="selfie-tip">點裝飾,再點甜點貼上去 ✨</div>
+    <div class="selfie-stickers" id="dessertTops"></div>
+    <div class="draw-btns">
+      <button class="ghost-btn" id="dessertClear">🗑️ 清除裝飾</button>
+    </div>
+    <button class="primary-btn" id="dessertDone" style="width:100%;margin-top:10px">🧁 做好送他吃(加好感度)</button>
+    <button class="ghost-btn" id="dessertBack" style="width:100%;margin-top:8px">← 回好感度頁</button>`;
+
+  // 選甜點底
+  const basesEl = $("dessertBases");
+  DESSERT_BASES.forEach(bs => {
+    const b = document.createElement("button");
+    b.className = "selfie-sticker" + (bs === dessertState.base ? " on" : "");
+    b.textContent = bs;
+    b.onclick = () => {
+      dessertState.base = bs;
+      $("dessertBase").textContent = bs;
+      basesEl.querySelectorAll(".selfie-sticker").forEach(x => x.classList.remove("on"));
+      b.classList.add("on");
+    };
+    basesEl.appendChild(b);
+  });
+  // 裝飾選擇
+  const topsEl = $("dessertTops");
+  DESSERT_TOPS.forEach(em => {
+    const b = document.createElement("button");
+    b.className = "selfie-sticker";
+    b.textContent = em;
+    b.onclick = () => {
+      dessertState.picked = em;
+      topsEl.querySelectorAll(".selfie-sticker").forEach(x => x.classList.remove("on"));
+      b.classList.add("on");
+    };
+    topsEl.appendChild(b);
+  });
+
+  // 點甜點區 → 貼裝飾
+  const stage = $("dessertStage");
+  stage.onclick = e => {
+    if (!dessertState.picked) { toast("先選一個裝飾喔 ✨"); return; }
+    const r = stage.getBoundingClientRect();
+    const x = ((e.clientX - r.left) / r.width) * 100;
+    const y = ((e.clientY - r.top) / r.height) * 100;
+    dessertState.tops.push({ emoji: dessertState.picked, x, y });
+    sfx.tap();
+    renderDessertTops();
+  };
+
+  $("dessertClear").onclick = () => { dessertState.tops = []; renderDessertTops(); };
+  $("dessertDone").onclick = () => finishDessert(id);
+  $("dessertBack").onclick = () => openAffection(id);
+}
+
+function renderDessertTops() {
+  const layer = $("dessertLayer");
+  if (!layer) return;
+  layer.innerHTML = "";
+  dessertState.tops.forEach(d => {
+    const el = document.createElement("span");
+    el.className = "selfie-placed";
+    el.textContent = d.emoji;
+    el.style.left = d.x + "%";
+    el.style.top = d.y + "%";
+    el.style.fontSize = "1.5rem";
+    layer.appendChild(el);
+  });
+}
+
+function finishDessert(id) {
+  const a = affOf(id);
+  const idol = idols.find(i => i.id === id);
+  const it = AFF_INTERACTIONS.find(x => x.id === "dessert");
+  const photo = (idol.gallery && idol.gallery[0]) || idol.photoData || idol.photoUrl;
+  let added = 0;
+  if (!a.inter.done.includes("dessert")) {
+    a.inter.done.push("dessert");
+    a.points += it.pts;
+    added = it.pts;
+    saveAffection();
+  }
+  sfx.win();
+  const area = $("affectionArea");
+  area.innerHTML = `
+    <div class="gift-react">
+      <div class="gift-react-stage">
+        ${photo ? `<img class="gift-react-photo" src="${esc(photo)}" alt="">` : `<div class="gift-react-emoji">${esc(idol.emoji || "💖")}</div>`}
+        <div class="gift-react-item">${dessertState.base}</div>
+      </div>
+      <div class="gift-react-msg">「好可愛的甜點!${esc(idol.name)} 捨不得吃,但還是開心地吃掉了 😋」</div>
+      <div class="gift-react-pts">${added > 0 ? `好感度 +${added} 🧁` : "今天加過分了 💗"}</div>
+      <button class="primary-btn" id="dessertAgain" style="margin-top:16px">再做一個 🧁</button>
+      <button class="ghost-btn" id="dessertHome" style="margin-top:8px;width:100%">回好感度頁</button>
+    </div>`;
+  $("dessertAgain").onclick = () => openDessert(id);
+  $("dessertHome").onclick = () => openAffection(id);
 }
 
 /* ================== 貪吃蛇 🐍 ================== */
