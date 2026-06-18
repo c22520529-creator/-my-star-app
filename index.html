@@ -4102,7 +4102,27 @@ const FOODS = [
   { id: "pasta",      icon: "🍝", name: "義大利麵",price: 72, pts: 4 },
   { id: "pizza",      icon: "🍕", name: "披薩",   price: 75, pts: 5 },
   { id: "chicken",    icon: "🍗", name: "炸雞",   price: 75, pts: 5 },
-  { id: "sushi",      icon: "🍣", name: "壽司",   price: 90, pts: 5 }
+  { id: "sushi",      icon: "🍣", name: "壽司",   price: 90, pts: 5 },
+  { id: "lemon",      icon: "🍋", name: "檸檬",   price: 22, pts: 1 },
+  { id: "greenapple", icon: "🍏", name: "青蘋果", price: 28, pts: 1 },
+  { id: "apple",      icon: "🍎", name: "蘋果",   price: 28, pts: 1 },
+  { id: "pear",       icon: "🍐", name: "西洋梨", price: 30, pts: 1 },
+  { id: "melon",      icon: "🍈", name: "哈密瓜", price: 35, pts: 2 },
+  { id: "coconut",    icon: "🥥", name: "椰子",   price: 38, pts: 2 },
+  { id: "milk",       icon: "🥛", name: "牛奶",   price: 30, pts: 2 },
+  { id: "coffee",     icon: "☕", name: "咖啡",   price: 45, pts: 2 },
+  { id: "toast",      icon: "🍞", name: "吐司",   price: 35, pts: 2 },
+  { id: "waffle",     icon: "🧇", name: "鬆餅",   price: 55, pts: 3 },
+  { id: "pancake",    icon: "🥞", name: "鬆餅堆", price: 58, pts: 3 },
+  { id: "salad",      icon: "🥗", name: "沙拉",   price: 50, pts: 3 },
+  { id: "shavedice",  icon: "🍧", name: "剉冰",   price: 50, pts: 3 },
+  { id: "softice",    icon: "🍨", name: "霜淇淋", price: 52, pts: 3 },
+  { id: "fishcake",   icon: "🍥", name: "魚板",   price: 48, pts: 3 },
+  { id: "sweetpotato",icon: "🍠", name: "烤地瓜", price: 50, pts: 3 },
+  { id: "oden",       icon: "🍢", name: "關東煮", price: 60, pts: 4 },
+  { id: "bento",      icon: "🍱", name: "便當",   price: 78, pts: 5 },
+  { id: "bacon",      icon: "🥓", name: "培根",   price: 65, pts: 4 },
+  { id: "taco",       icon: "🌮", name: "墨西哥捲",price: 70, pts: 4 }
 ];
 function foodById(fid) { return FOODS.find(f => f.id === fid); }
 
@@ -5088,7 +5108,7 @@ function finishCook(id) {
 
 /* ================== 養寵物 🐾 ================== */
 const PET_ANIMALS = ["🐹","🐰","🐱","🐶","🐧","🐻","🐥","🐨","🦊","🐯","🐼","🐷","🐸","🐵","🦁","🐮","🐭","🦆"];
-const PET_FOODS = ["🥕","🌰","🍎","🥜","🐟","🦴","🌽","🥬","🍓","🧀"];
+const PET_FOODS = ["🥕","🌰","🍎","🥜","🐟","🦴","🌽","🥬","🍓","🧀","🍌","🍇","🥦","🍃","🥚","🍖","🦐","🍐","🥝","🌻"];
 
 function openPet(id) {
   const a = affOf(id);
