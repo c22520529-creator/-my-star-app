@@ -639,6 +639,29 @@
   .snake-cell.snake-body{background:#7ed957;border-radius:3px;}
   .snake-cell.snake-head{background:#4caf50;border-radius:4px;box-shadow:inset 0 0 0 1px #fff;}
   .snake-cell.snake-food{border-radius:50%;box-shadow:0 0 0 2px #ff7eb6;background-color:#fff;}
+
+  /* ---------- 踩地雷 ---------- */
+  .mine-levels{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:10px;}
+  .mine-board{
+    display:grid;gap:2px;max-width:420px;margin:0 auto 12px;
+    background:#b9d4e8;padding:4px;border-radius:10px;
+  }
+  body.dark .mine-board{background:#24323e;}
+  .mine-cell{
+    aspect-ratio:1;border:none;border-radius:3px;background:#d4e8f5;
+    font-size:.85rem;font-weight:800;cursor:pointer;font-family:inherit;
+    display:flex;align-items:center;justify-content:center;padding:0;
+    color:var(--ink);line-height:1;
+  }
+  body.dark .mine-cell{background:#33485a;}
+  .mine-cell:hover:not(.open){background:#bcdcef;}
+  .mine-cell.open{background:#eef6fc;cursor:default;}
+  body.dark .mine-cell.open{background:#1c2730;}
+  .mine-cell.bomb{background:#ffd3d3;}
+  .mine-cell.n1{color:#2f6fd8;} .mine-cell.n2{color:#2e9e4f;}
+  .mine-cell.n3{color:#e0563f;} .mine-cell.n4{color:#7b3fd8;}
+  .mine-cell.n5{color:#b8482f;} .mine-cell.n6{color:#2aa0a0;}
+  .mine-cell.n7{color:#555;}    .mine-cell.n8{color:#999;}
   .gacha-machine{text-align:center;margin-bottom:16px;}
   .gacha-top{font-size:3.5rem;margin-bottom:8px;}
   .gacha-btn{font-size:1.2rem;padding:14px 36px;}
@@ -974,6 +997,10 @@ window.FIREBASE_CONFIG = {
         <span class="game-pick-emoji">🐍</span>
         <span><b>貪吃蛇</b><br><small>吃東西變長,別撞牆咬到自己</small></span>
       </button>
+      <button class="game-pick" data-game="mine">
+        <span class="game-pick-emoji">💣</span>
+        <span><b>踩地雷</b><br><small>翻開格子,靠數字推理避開地雷</small></span>
+      </button>
     </div>
 
     <!-- 猜猜看遊戲 -->
@@ -1112,6 +1139,15 @@ window.FIREBASE_CONFIG = {
         <button class="ghost-btn" id="snakeBack">← 選遊戲</button>
       </div>
       <div id="snakeArea"></div>
+    </div>
+
+    <!-- 踩地雷 -->
+    <div id="mineWrap" style="display:none">
+      <div class="game-head">
+        <div class="game-info"><span id="mineFlags">🚩 0</span></div>
+        <button class="ghost-btn" id="mineBack">← 選遊戲</button>
+      </div>
+      <div id="mineArea"></div>
     </div>
   </section>
 
@@ -2144,6 +2180,7 @@ function showGameMenu() {
   $("fortuneWrap").style.display = "none";
   $("affectionWrap").style.display = "none";
   $("snakeWrap").style.display = "none";
+  $("mineWrap").style.display = "none";
   if (memoryState && memoryState.timer) clearInterval(memoryState.timer);
   if (guessGame && guessGame.timer) clearInterval(guessGame.timer);
   if (numberState && numberState.timer) clearTimeout(numberState.timer);
@@ -2165,7 +2202,8 @@ document.querySelectorAll("[data-game]").forEach(b => b.onclick = () => {
   else if (g === "gacha") { $("gachaWrap").style.display = ""; setupGacha(); }
   else if (g === "fortune") { $("fortuneWrap").style.display = ""; setupFortune(); }
   else if (g === "affection") { $("affectionWrap").style.display = ""; setupAffection(); }
-  else { $("snakeWrap").style.display = ""; setupSnake(); }
+  else if (g === "snake") { $("snakeWrap").style.display = ""; setupSnake(); }
+  else { $("mineWrap").style.display = ""; setupMine(); }
 });
 $("guessBack").onclick = showGameMenu;
 $("memoryBack").onclick = showGameMenu;
@@ -2179,6 +2217,7 @@ $("gachaBack").onclick = showGameMenu;
 $("fortuneBack").onclick = showGameMenu;
 $("affectionBack").onclick = showGameMenu;
 $("snakeBack").onclick = showGameMenu;
+$("mineBack").onclick = showGameMenu;
 $("affectionBack").onclick = showGameMenu;
 
 /* ================== 猜照片遊戲 🔍❤️ ================== */
@@ -4189,6 +4228,183 @@ function snakeOver() {
   stopSnake();
   $("snakeMsg").innerHTML = `<div class="game-over">💔 撞到了,遊戲結束!<br>得分 ${snake.score} 分<br><button class="primary-btn" id="snakeAgainBtn" style="margin-top:12px">再玩一次 🔄</button></div>`;
   $("snakeAgainBtn").onclick = startSnake;
+}
+
+/* ================== 踩地雷 💣 ================== */
+let mine = null;
+const MINE_LEVELS = {
+  easy:   { size: 9,  bombs: 10, label: "🟢 簡單" },
+  medium: { size: 12, bombs: 25, label: "🟡 中等" },
+  hard:   { size: 14, bombs: 40, label: "🔴 困難" }
+};
+
+function setupMine() {
+  // 先選難度
+  const area = $("mineArea");
+  $("mineFlags").textContent = "🚩 0";
+  area.innerHTML = `
+    <div class="mem-pick-title">選難度 💣</div>
+    <div class="mine-levels">
+      ${Object.keys(MINE_LEVELS).map(k =>
+        `<button class="diff-btn" data-mlv="${k}">${MINE_LEVELS[k].label}<br><small>${MINE_LEVELS[k].size}×${MINE_LEVELS[k].size}・${MINE_LEVELS[k].bombs} 顆雷</small></button>`
+      ).join("")}
+    </div>
+    <div class="g2048-hint">電腦:左鍵翻開、右鍵插旗　手機:點一下翻開、長按插旗</div>`;
+  area.querySelectorAll("[data-mlv]").forEach(b => b.onclick = () => startMine(b.dataset.mlv));
+}
+
+function startMine(level) {
+  const cfg = MINE_LEVELS[level];
+  const n = cfg.size;
+  // 建立空盤(地雷等第一次點開才放,確保第一下不會死)
+  const cells = [];
+  for (let r = 0; r < n; r++) {
+    cells.push([]);
+    for (let c = 0; c < n; c++) {
+      cells[r].push({ bomb: false, open: false, flag: false, num: 0 });
+    }
+  }
+  mine = { n, bombs: cfg.bombs, cells, started: false, over: false, openCount: 0, flags: 0 };
+  drawMine();
+}
+
+// 第一次點開後才佈雷(避開第一下點的那格和它周圍)
+function placeMines(safeR, safeC) {
+  const n = mine.n;
+  const safe = new Set();
+  for (let dr = -1; dr <= 1; dr++)
+    for (let dc = -1; dc <= 1; dc++) {
+      const r = safeR + dr, c = safeC + dc;
+      if (r >= 0 && r < n && c >= 0 && c < n) safe.add(r + "," + c);
+    }
+  let placed = 0;
+  while (placed < mine.bombs) {
+    const r = Math.floor(Math.random() * n);
+    const c = Math.floor(Math.random() * n);
+    if (mine.cells[r][c].bomb || safe.has(r + "," + c)) continue;
+    mine.cells[r][c].bomb = true;
+    placed++;
+  }
+  // 算每格周圍幾顆雷
+  for (let r = 0; r < n; r++)
+    for (let c = 0; c < n; c++) {
+      if (mine.cells[r][c].bomb) continue;
+      let cnt = 0;
+      for (let dr = -1; dr <= 1; dr++)
+        for (let dc = -1; dc <= 1; dc++) {
+          const nr = r + dr, nc = c + dc;
+          if (nr >= 0 && nr < n && nc >= 0 && nc < n && mine.cells[nr][nc].bomb) cnt++;
+        }
+      mine.cells[r][c].num = cnt;
+    }
+  mine.started = true;
+}
+
+// 翻開一格(空白會自動連開周圍)
+function openCell(r, c) {
+  const n = mine.n;
+  if (r < 0 || r >= n || c < 0 || c >= n) return;
+  const cell = mine.cells[r][c];
+  if (cell.open || cell.flag) return;
+  cell.open = true;
+  mine.openCount++;
+  if (cell.num === 0 && !cell.bomb) {
+    // 周圍 8 格一起翻
+    for (let dr = -1; dr <= 1; dr++)
+      for (let dc = -1; dc <= 1; dc++)
+        if (dr !== 0 || dc !== 0) openCell(r + dr, c + dc);
+  }
+}
+
+function drawMine() {
+  const area = $("mineArea");
+  const n = mine.n;
+  $("mineFlags").textContent = `🚩 ${mine.flags}/${mine.bombs}`;
+  let html = `<div class="mine-board" id="mineBoard" style="grid-template-columns:repeat(${n},1fr)">`;
+  for (let r = 0; r < n; r++)
+    for (let c = 0; c < n; c++) {
+      const cell = mine.cells[r][c];
+      let cls = "mine-cell", txt = "";
+      if (cell.open) {
+        cls += " open";
+        if (cell.bomb) { cls += " bomb"; txt = "💣"; }
+        else if (cell.num > 0) { cls += " n" + cell.num; txt = cell.num; }
+      } else if (cell.flag) {
+        txt = "🚩";
+      }
+      html += `<button class="${cls}" data-r="${r}" data-c="${c}">${txt}</button>`;
+    }
+  html += `</div><div id="mineMsg"></div>`;
+  area.innerHTML = html;
+
+  const board = $("mineBoard");
+  board.querySelectorAll("[data-r]").forEach(b => {
+    const r = +b.dataset.r, c = +b.dataset.c;
+    // 左鍵/點一下 → 翻開
+    b.onclick = () => mineClick(r, c);
+    // 右鍵 → 插旗
+    b.oncontextmenu = e => { e.preventDefault(); mineFlag(r, c); };
+    // 長按 → 插旗(手機)
+    let pressTimer = null;
+    b.ontouchstart = e => {
+      pressTimer = setTimeout(() => { mineFlag(r, c); pressTimer = null; }, 450);
+    };
+    b.ontouchend = e => {
+      if (pressTimer) { clearTimeout(pressTimer); } // 短按當點擊(由 onclick 處理)
+      else { e.preventDefault(); } // 長按已插旗,擋掉後續click
+    };
+  });
+}
+
+function mineClick(r, c) {
+  if (mine.over) return;
+  const cell = mine.cells[r][c];
+  if (cell.flag || cell.open) return;
+  if (!mine.started) placeMines(r, c); // 第一下才佈雷
+  if (cell.bomb) { sfx.lose(); mineOver(false); return; }
+  sfx.tap();
+  openCell(r, c);
+  drawMine();
+  checkMineWin();
+}
+
+function mineFlag(r, c) {
+  if (mine.over) return;
+  const cell = mine.cells[r][c];
+  if (cell.open) return;
+  cell.flag = !cell.flag;
+  mine.flags += cell.flag ? 1 : -1;
+  sfx.flip();
+  drawMine();
+}
+
+function checkMineWin() {
+  // 贏:所有「不是雷」的格子都翻開了
+  const total = mine.n * mine.n;
+  if (mine.openCount >= total - mine.bombs) mineOver(true);
+}
+
+function mineOver(win) {
+  mine.over = true;
+  // 揭曉所有地雷
+  for (let r = 0; r < mine.n; r++)
+    for (let c = 0; c < mine.n; c++)
+      if (mine.cells[r][c].bomb) mine.cells[r][c].open = true;
+  drawMine();
+  if (win) sfx.win();
+  $("mineMsg").innerHTML = `<div class="game-over">
+    ${win ? "🎉 全部清完,過關!" : "💥 踩到地雷了!"}<br>
+    <button class="primary-btn" id="mineAgain" style="margin-top:12px">再玩一次 🔄</button>
+    <button class="ghost-btn" id="mineNewLv" style="margin-top:8px">換難度</button>
+  </div>`;
+  $("mineAgain").onclick = () => startMine(currentMineLevel());
+  $("mineNewLv").onclick = setupMine;
+}
+
+function currentMineLevel() {
+  // 依目前盤面大小反推難度
+  for (const k in MINE_LEVELS) if (MINE_LEVELS[k].size === mine.n) return k;
+  return "easy";
 }
 
 /* ================== 里程碑慶祝 🎉 ================== */
