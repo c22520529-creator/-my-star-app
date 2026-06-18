@@ -648,6 +648,25 @@
   .draw-btns{display:flex;gap:8px;justify-content:center;max-width:340px;margin:10px auto 0;}
   .draw-btns .ghost-btn{flex:1;}
   #drawEraser.on{background:var(--accent-2);color:#fff;}
+
+  /* ---------- 一起自拍 ---------- */
+  .selfie-head{text-align:center;font-weight:900;font-size:1.1rem;margin-bottom:12px;}
+  .selfie-frame{
+    position:relative;width:300px;max-width:90%;aspect-ratio:1;margin:0 auto;
+    border:6px solid #fff;border-radius:18px;overflow:hidden;box-shadow:var(--shadow);
+    cursor:pointer;background:#ffe;
+  }
+  .selfie-photo{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;}
+  .selfie-noPhoto{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:5rem;}
+  .selfie-layer{position:absolute;inset:0;pointer-events:none;}
+  .selfie-placed{position:absolute;font-size:2rem;transform:translate(-50%,-50%);}
+  .selfie-tip{text-align:center;color:var(--ink-soft);font-size:.85rem;margin:10px 0;}
+  .selfie-stickers{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;max-width:340px;margin:0 auto;}
+  .selfie-sticker{
+    width:40px;height:40px;border-radius:10px;border:2px solid #ece2fb;background:var(--card);
+    font-size:1.4rem;cursor:pointer;padding:0;
+  }
+  .selfie-sticker.on{border-color:var(--accent-2);background:#f3eaff;transform:scale(1.1);}
   .aff-inter{
     display:flex;justify-content:space-between;align-items:center;
     background:var(--card);border:2px solid #ffd9ec;border-radius:14px;
@@ -3961,6 +3980,7 @@ const AFF_INTERACTIONS = [
   { id: "pat",   icon: "🤚", label: "摸摸他",   lv: 2, pts: 2, reply: "他笑了 😊" },
   { id: "draw",  icon: "🎨", label: "一起畫畫", lv: 3, pts: 3, reply: "你們一起畫畫,好開心 🎨" },
   { id: "feed",  icon: "🍚", label: "餵他吃飯", lv: 4, pts: 3, reply: "他吃得好開心!🍴" },
+  { id: "selfie",icon: "📸", label: "一起自拍", lv: 5, pts: 3, reply: "你們拍了一張可愛的合照 📸" },
   { id: "gift",  icon: "🎁", label: "送禮物",   lv: 6, pts: 3, reply: "他超喜歡這個禮物!🥰" },
   { id: "music", icon: "🎵", label: "一起聽歌", lv: 8, pts: 3, reply: "你們一起聽歌,好幸福 🎶" }
 ];
@@ -4238,6 +4258,7 @@ function openAffection(id) {
     const isFeed = it.id === "feed"; // 餵飯特別:從背包選食物
     const isGift = it.id === "gift"; // 送禮物特別:從禮物背包選
     const isDraw = it.id === "draw"; // 畫畫特別:開畫布
+    const isSelfie = it.id === "selfie"; // 自拍特別:開相框
     const row = document.createElement("button");
     row.className = "aff-inter" + (!unlocked ? " locked" : "");
     if (!unlocked) {
@@ -4252,6 +4273,8 @@ function openAffection(id) {
       row.innerHTML = `<span>${it.icon} ${esc(it.label)}</span><span class="aff-task-pts">🎁 ${giftCount} 個禮物</span>`;
     } else if (isDraw) {
       row.innerHTML = `<span>${it.icon} ${esc(it.label)}</span><span class="aff-task-pts">${gotToday ? "今天加過分了 💗" : "開畫布 🎨"}</span>`;
+    } else if (isSelfie) {
+      row.innerHTML = `<span>${it.icon} ${esc(it.label)}</span><span class="aff-task-pts">${gotToday ? "今天加過分了 💗" : "開相框 📸"}</span>`;
     } else {
       row.innerHTML = `<span>${it.icon} ${esc(it.label)}</span><span class="aff-task-pts">${gotToday ? "今天加過分了 💗" : "+" + it.pts}</span>`;
     }
@@ -4259,6 +4282,7 @@ function openAffection(id) {
       if (isFeed) { openFeed(id); return; } // 餵飯 → 開背包
       if (isGift) { openGift(id); return; } // 送禮物 → 開禮物背包
       if (isDraw) { openDraw(id); return; } // 畫畫 → 開畫布
+      if (isSelfie) { openSelfie(id); return; } // 自拍 → 開相框
       if (!a.inter.done.includes(it.id)) {
         // 今天第一次 → 加分
         a.inter.done.push(it.id);
@@ -4695,6 +4719,90 @@ function finishDrawing(id) {
   }
   sfx.win();
   toast(added > 0 ? `畫得真好!${esc(idol.name)} 好感度 +${added} 🎨` : `畫得真好!🎨`);
+  openAffection(id);
+}
+
+/* ================== 一起自拍 📸 ================== */
+const SELFIE_STICKERS = ["💕", "⭐", "🌸", "✨", "🎀", "💖", "🌟", "🐹", "💍", "👑", "🍓", "🌈", "💐", "🎉", "😍", "🥰"];
+let selfieState = null;
+
+function openSelfie(id) {
+  const idol = idols.find(i => i.id === id);
+  const photo = (idol.gallery && idol.gallery[0]) || idol.photoData || idol.photoUrl;
+  const area = $("affectionArea");
+  selfieState = { id, stickers: [] }; // 貼上去的貼紙 [{emoji,x,y}]
+  area.innerHTML = `
+    <div class="selfie-head">📸 跟 ${esc(idol.emoji || "")} ${esc(idol.name)} 一起自拍</div>
+    <div class="selfie-frame" id="selfieFrame">
+      ${photo ? `<img class="selfie-photo" src="${esc(photo)}" alt="">` : `<div class="selfie-noPhoto">${esc(idol.emoji || "💖")}</div>`}
+      <div class="selfie-layer" id="selfieLayer"></div>
+    </div>
+    <div class="selfie-tip">點一個貼紙,再點照片貼上去 ✨</div>
+    <div class="selfie-stickers" id="selfieStickers"></div>
+    <div class="draw-btns">
+      <button class="ghost-btn" id="selfieClear">🗑️ 清除貼紙</button>
+    </div>
+    <button class="primary-btn" id="selfieDone" style="width:100%;margin-top:10px">📸 拍照完成(加好感度)</button>
+    <button class="ghost-btn" id="selfieBack" style="width:100%;margin-top:8px">← 回好感度頁</button>`;
+
+  // 貼紙選擇
+  const stEl = $("selfieStickers");
+  SELFIE_STICKERS.forEach(em => {
+    const b = document.createElement("button");
+    b.className = "selfie-sticker";
+    b.textContent = em;
+    b.onclick = () => {
+      selfieState.picked = em;
+      stEl.querySelectorAll(".selfie-sticker").forEach(x => x.classList.remove("on"));
+      b.classList.add("on");
+    };
+    stEl.appendChild(b);
+  });
+
+  // 點照片 → 貼上目前選的貼紙
+  const frame = $("selfieFrame");
+  frame.onclick = e => {
+    if (!selfieState.picked) { toast("先選一個貼紙喔 ✨"); return; }
+    const r = frame.getBoundingClientRect();
+    const x = ((e.clientX - r.left) / r.width) * 100;
+    const y = ((e.clientY - r.top) / r.height) * 100;
+    selfieState.stickers.push({ emoji: selfieState.picked, x, y });
+    sfx.tap();
+    renderSelfieStickers();
+  };
+
+  $("selfieClear").onclick = () => { selfieState.stickers = []; renderSelfieStickers(); };
+  $("selfieDone").onclick = () => finishSelfie(id);
+  $("selfieBack").onclick = () => openAffection(id);
+}
+
+function renderSelfieStickers() {
+  const layer = $("selfieLayer");
+  if (!layer) return;
+  layer.innerHTML = "";
+  selfieState.stickers.forEach(s => {
+    const el = document.createElement("span");
+    el.className = "selfie-placed";
+    el.textContent = s.emoji;
+    el.style.left = s.x + "%";
+    el.style.top = s.y + "%";
+    layer.appendChild(el);
+  });
+}
+
+function finishSelfie(id) {
+  const a = affOf(id);
+  const idol = idols.find(i => i.id === id);
+  const it = AFF_INTERACTIONS.find(x => x.id === "selfie");
+  let added = 0;
+  if (!a.inter.done.includes("selfie")) {
+    a.inter.done.push("selfie");
+    a.points += it.pts;
+    added = it.pts;
+    saveAffection();
+  }
+  sfx.win();
+  toast(added > 0 ? `📸 喀嚓!拍到可愛合照 ${esc(idol.name)} 好感度 +${added}` : `📸 喀嚓!好可愛的合照`);
   openAffection(id);
 }
 
