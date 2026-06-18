@@ -677,6 +677,20 @@
   }
   body.dark .bday-stage{background:linear-gradient(160deg,#2e2236,#222c38);}
   .bday-cake{font-size:6rem;pointer-events:none;}
+
+  /* ---------- 幫他做飯 ---------- */
+  .cook-pot{
+    position:relative;width:300px;max-width:90%;aspect-ratio:1.1;margin:0 auto;
+    border-radius:18px;background:linear-gradient(160deg,#fff4e6,#ffeef0);
+    box-shadow:var(--shadow);display:flex;flex-direction:column;
+    align-items:center;justify-content:center;
+  }
+  body.dark .cook-pot{background:linear-gradient(160deg,#322a22,#2e2236);}
+  .cook-pot-emoji{font-size:4.5rem;}
+  .cook-pot-items{
+    display:flex;flex-wrap:wrap;gap:2px;justify-content:center;
+    max-width:80%;margin-top:8px;font-size:1.6rem;min-height:40px;
+  }
   .aff-inter{
     display:flex;justify-content:space-between;align-items:center;
     background:var(--card);border:2px solid #ffd9ec;border-radius:14px;
@@ -3992,6 +4006,7 @@ const AFF_INTERACTIONS = [
   { id: "feed",  icon: "🍚", label: "餵他吃飯", lv: 4, pts: 3, reply: "他吃得好開心!🍴" },
   { id: "selfie",icon: "📸", label: "一起自拍", lv: 12, pts: 3, reply: "你們拍了一張可愛的合照 📸" },
   { id: "bday",  icon: "🎂", label: "幫他慶生", lv: 8, pts: 4, reply: "你幫他辦了一場生日派對 🎉" },
+  { id: "cook",  icon: "🍳", label: "幫他做飯", lv: 10, pts: 4, reply: "你做了一道料理給他 🍳" },
   { id: "gift",  icon: "🎁", label: "送禮物",   lv: 6, pts: 3, reply: "他超喜歡這個禮物!🥰" },
   { id: "music", icon: "🎵", label: "一起聽歌", lv: 8, pts: 3, reply: "你們一起聽歌,好幸福 🎶" }
 ];
@@ -4271,6 +4286,7 @@ function openAffection(id) {
     const isDraw = it.id === "draw"; // 畫畫特別:開畫布
     const isSelfie = it.id === "selfie"; // 自拍特別:開相框
     const isBday = it.id === "bday"; // 慶生特別:開佈置
+    const isCook = it.id === "cook"; // 做飯特別:選食材
     const row = document.createElement("button");
     row.className = "aff-inter" + (!unlocked ? " locked" : "");
     if (!unlocked) {
@@ -4289,6 +4305,8 @@ function openAffection(id) {
       row.innerHTML = `<span>${it.icon} ${esc(it.label)}</span><span class="aff-task-pts">${gotToday ? "今天加過分了 💗" : "開相框 📸"}</span>`;
     } else if (isBday) {
       row.innerHTML = `<span>${it.icon} ${esc(it.label)}</span><span class="aff-task-pts">${gotToday ? "今天加過分了 💗" : "佈置 🎂"}</span>`;
+    } else if (isCook) {
+      row.innerHTML = `<span>${it.icon} ${esc(it.label)}</span><span class="aff-task-pts">${gotToday ? "今天加過分了 💗" : "下廚 🍳"}</span>`;
     } else {
       row.innerHTML = `<span>${it.icon} ${esc(it.label)}</span><span class="aff-task-pts">${gotToday ? "今天加過分了 💗" : "+" + it.pts}</span>`;
     }
@@ -4298,6 +4316,7 @@ function openAffection(id) {
       if (isDraw) { openDraw(id); return; } // 畫畫 → 開畫布
       if (isSelfie) { openSelfie(id); return; } // 自拍 → 開相框
       if (isBday) { openBday(id); return; } // 慶生 → 開佈置
+      if (isCook) { openCook(id); return; } // 做飯 → 開廚房
       if (!a.inter.done.includes(it.id)) {
         // 今天第一次 → 加分
         a.inter.done.push(it.id);
@@ -4921,6 +4940,89 @@ function finishBday(id) {
   startConfetti();
   toast(added > 0 ? `🎉 生日快樂!${esc(idol.name)} 好感度 +${added} 🎂` : `🎉 生日快樂 ${esc(idol.name)}!🎂`);
   openAffection(id);
+}
+
+/* ================== 幫他做飯 🍳 ================== */
+const COOK_INGREDIENTS = ["🍚","🍜","🥩","🍗","🐟","🥚","🍅","🥕","🥬","🍄","🧅","🌽","🥦","🦐","🧀","🌶️","🍤","🥔"];
+// 不同食材數量做出不同料理(都是好結果,不會失敗)
+const COOK_DISHES = ["🍱","🍲","🍛","🥘","🍝","🍜","🍳","🥗"];
+let cookState = null;
+
+function openCook(id) {
+  const idol = idols.find(i => i.id === id);
+  const photo = (idol.gallery && idol.gallery[0]) || idol.photoData || idol.photoUrl;
+  const area = $("affectionArea");
+  cookState = { id, pot: [] };
+  area.innerHTML = `
+    <div class="selfie-head">🍳 做料理給 ${esc(idol.emoji || "")} ${esc(idol.name)} 吃</div>
+    <div class="cook-pot" id="cookPot">
+      <div class="cook-pot-emoji">🍲</div>
+      <div class="cook-pot-items" id="cookItems"></div>
+    </div>
+    <div class="selfie-tip">點食材放進鍋子裡(放越多越豐盛) 🥘</div>
+    <div class="selfie-stickers" id="cookIngredients"></div>
+    <div class="draw-btns">
+      <button class="ghost-btn" id="cookClear">🗑️ 倒掉重做</button>
+    </div>
+    <button class="primary-btn" id="cookDone" style="width:100%;margin-top:10px">🍳 煮好給他吃(加好感度)</button>
+    <button class="ghost-btn" id="cookBack" style="width:100%;margin-top:8px">← 回好感度頁</button>`;
+
+  const ingEl = $("cookIngredients");
+  COOK_INGREDIENTS.forEach(em => {
+    const b = document.createElement("button");
+    b.className = "selfie-sticker";
+    b.textContent = em;
+    b.onclick = () => {
+      if (cookState.pot.length >= 12) { toast("鍋子滿了啦 😆"); return; }
+      cookState.pot.push(em);
+      sfx.tap();
+      renderCookPot();
+    };
+    ingEl.appendChild(b);
+  });
+
+  $("cookClear").onclick = () => { cookState.pot = []; renderCookPot(); };
+  $("cookDone").onclick = () => finishCook(id);
+  $("cookBack").onclick = () => openAffection(id);
+}
+
+function renderCookPot() {
+  const el = $("cookItems");
+  if (!el) return;
+  el.innerHTML = cookState.pot.map(e => `<span>${e}</span>`).join("");
+}
+
+function finishCook(id) {
+  const a = affOf(id);
+  const idol = idols.find(i => i.id === id);
+  const it = AFF_INTERACTIONS.find(x => x.id === "cook");
+  if (cookState.pot.length === 0) { toast("先放點食材進鍋子吧 🥘"); return; }
+  // 隨機做出一道料理(都是好結果)
+  const dish = COOK_DISHES[Math.floor(Math.random() * COOK_DISHES.length)];
+  const photo = (idol.gallery && idol.gallery[0]) || idol.photoData || idol.photoUrl;
+  let added = 0;
+  if (!a.inter.done.includes("cook")) {
+    a.inter.done.push("cook");
+    a.points += it.pts;
+    added = it.pts;
+    saveAffection();
+  }
+  sfx.win();
+  // 顯示成品畫面
+  const area = $("affectionArea");
+  area.innerHTML = `
+    <div class="gift-react">
+      <div class="gift-react-stage">
+        ${photo ? `<img class="gift-react-photo" src="${esc(photo)}" alt="">` : `<div class="gift-react-emoji">${esc(idol.emoji || "💖")}</div>`}
+        <div class="gift-react-item">${dish}</div>
+      </div>
+      <div class="gift-react-msg">「哇,${esc(idol.name)} 吃得津津有味!好好吃 😋」</div>
+      <div class="gift-react-pts">${added > 0 ? `好感度 +${added} 🍳` : "今天加過分了 💗"}</div>
+      <button class="primary-btn" id="cookAgain" style="margin-top:16px">再做一道 🍳</button>
+      <button class="ghost-btn" id="cookHome" style="margin-top:8px;width:100%">回好感度頁</button>
+    </div>`;
+  $("cookAgain").onclick = () => openCook(id);
+  $("cookHome").onclick = () => openAffection(id);
 }
 
 /* ================== 貪吃蛇 🐍 ================== */
