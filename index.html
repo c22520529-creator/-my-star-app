@@ -741,6 +741,29 @@
     20%{opacity:1;}
     100%{left:110%;opacity:0;transform:translateY(120px) rotate(20deg);}
   }
+
+  /* ---------- 寫信給他 ---------- */
+  .letter-paper{
+    max-width:340px;margin:0 auto;border-radius:14px;padding:18px 20px;
+    box-shadow:var(--shadow);
+  }
+  .letter-to{font-weight:800;font-size:1rem;margin-bottom:10px;}
+  .letter-text{
+    width:100%;min-height:130px;border:none;background:transparent;resize:vertical;
+    font-family:inherit;font-size:.95rem;line-height:1.7;outline:none;
+  }
+  .letter-text::placeholder{opacity:.5;}
+  .letter-from{text-align:right;font-weight:700;font-size:.9rem;margin-top:10px;}
+  .letter-papers{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;max-width:340px;margin:0 auto;}
+  .letter-paper-pick{
+    padding:7px 12px;border-radius:999px;border:2px solid transparent;
+    font-weight:700;font-size:.8rem;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.08);
+  }
+  .letter-paper-pick.on{border-color:var(--accent-2);transform:scale(1.08);}
+  .letter-box-list{max-width:340px;margin:0 auto;display:flex;flex-direction:column;gap:10px;}
+  .letter-saved{border-radius:12px;padding:12px 14px;box-shadow:var(--shadow);text-align:left;}
+  .letter-saved-date{font-size:.75rem;opacity:.7;margin-bottom:4px;}
+  .letter-saved-text{font-size:.9rem;line-height:1.6;white-space:pre-wrap;word-break:break-word;}
   .aff-inter{
     display:flex;justify-content:space-between;align-items:center;
     background:var(--card);border:2px solid #ffd9ec;border-radius:14px;
@@ -4054,6 +4077,7 @@ const AFF_INTERACTIONS = [
   { id: "pat",   icon: "🤚", label: "摸摸他",   lv: 2,  pts: 2, reply: "他笑了 😊" },
   { id: "feed",  icon: "🍚", label: "餵他吃飯", lv: 4,  pts: 3, reply: "他吃得好開心!🍴" },
   { id: "star",  icon: "🌟", label: "一起看星星", lv: 4, pts: 3, reply: "你們一起看了滿天星星 🌟" },
+  { id: "letter",icon: "💌", label: "寫信給他", lv: 4, pts: 3, reply: "他收到你的信,好感動 🥹" },
   { id: "gift",  icon: "🎁", label: "送禮物",   lv: 6,  pts: 3, reply: "他超喜歡這個禮物!🥰" },
   { id: "pet",   icon: "🐾", label: "養寵物",   lv: 6,  pts: 3, reply: "你們一起照顧寵物 🐾" },
   { id: "music", icon: "🎵", label: "一起聽歌", lv: 8,  pts: 3, reply: "你們一起聽歌,好幸福 🎶" },
@@ -4122,7 +4146,8 @@ const FOODS = [
   { id: "oden",       icon: "🍢", name: "關東煮", price: 60, pts: 4 },
   { id: "bento",      icon: "🍱", name: "便當",   price: 78, pts: 5 },
   { id: "bacon",      icon: "🥓", name: "培根",   price: 65, pts: 4 },
-  { id: "taco",       icon: "🌮", name: "墨西哥捲",price: 70, pts: 4 }
+  { id: "taco",       icon: "🌮", name: "墨西哥捲",price: 70, pts: 4 },
+  { id: "hotpot",     icon: "🍲", name: "火鍋",   price: 85, pts: 5 }
 ];
 function foodById(fid) { return FOODS.find(f => f.id === fid); }
 
@@ -4361,6 +4386,7 @@ function openAffection(id) {
     const isCook = it.id === "cook"; // 做飯特別:選食材
     const isPet = it.id === "pet"; // 養寵物特別:開寵物
     const isStar = it.id === "star"; // 看星星特別:開夜空
+    const isLetter = it.id === "letter"; // 寫信特別:開信紙
     const row = document.createElement("button");
     row.className = "aff-inter" + (!unlocked ? " locked" : "");
     if (!unlocked) {
@@ -4386,6 +4412,8 @@ function openAffection(id) {
       row.innerHTML = `<span>${pet} ${esc(it.label)}</span><span class="aff-task-pts">${gotToday ? "今天加過分了 💗" : "照顧 " + pet}</span>`;
     } else if (isStar) {
       row.innerHTML = `<span>${it.icon} ${esc(it.label)}</span><span class="aff-task-pts">${gotToday ? "今天加過分了 💗" : "看夜空 🌌"}</span>`;
+    } else if (isLetter) {
+      row.innerHTML = `<span>${it.icon} ${esc(it.label)}</span><span class="aff-task-pts">${gotToday ? "今天加過分了 💗" : "寫信 💌"}</span>`;
     } else {
       row.innerHTML = `<span>${it.icon} ${esc(it.label)}</span><span class="aff-task-pts">${gotToday ? "今天加過分了 💗" : "+" + it.pts}</span>`;
     }
@@ -4398,6 +4426,7 @@ function openAffection(id) {
       if (isCook) { openCook(id); return; } // 做飯 → 開廚房
       if (isPet) { openPet(id); return; } // 養寵物 → 開寵物
       if (isStar) { openStar(id); return; } // 看星星 → 開夜空
+      if (isLetter) { openLetter(id); return; } // 寫信 → 開信紙
       if (!a.inter.done.includes(it.id)) {
         // 今天第一次 → 加分
         a.inter.done.push(it.id);
@@ -5334,6 +5363,131 @@ function finishStar(id) {
   sfx.win();
   toast(`🌟 ${wish}${added > 0 ? ` ${esc(idol.name)} 好感度 +${added}` : ""}`);
   openAffection(id);
+}
+
+/* ================== 寫信給他 💌 ================== */
+const LETTER_PAPERS = [
+  { id: "pink",  name: "粉紅", bg: "linear-gradient(160deg,#fff0f6,#ffe0ec)", ink: "#a23b6c" },
+  { id: "blue",  name: "天藍", bg: "linear-gradient(160deg,#eef6ff,#d8ecff)", ink: "#2d6a9e" },
+  { id: "mint",  name: "薄荷", bg: "linear-gradient(160deg,#eafaf2,#d6f5e6)", ink: "#2e8b6a" },
+  { id: "cream", name: "奶油", bg: "linear-gradient(160deg,#fffaf0,#fff2d6)", ink: "#a6792e" },
+  { id: "purple",name: "薰衣草", bg: "linear-gradient(160deg,#f5f0ff,#e8ddff)", ink: "#7a55b0" }
+];
+const LETTER_REPLIES = [
+  "他讀著你的信,眼眶有點濕濕的 🥹",
+  "他把信小心收好,說會永遠留著 💕",
+  "他笑得好開心,謝謝你一直支持他 🥰",
+  "他說收到這封信是今天最棒的事 ✨",
+  "他抱著信,覺得好幸福 💗"
+];
+let letterState = null;
+
+function openLetter(id) {
+  const a = affOf(id);
+  if (!a.letters) a.letters = []; // 收藏的信
+  const idol = idols.find(i => i.id === id);
+  letterState = { id, paper: LETTER_PAPERS[0] };
+  const area = $("affectionArea");
+  area.innerHTML = `
+    <div class="selfie-head">💌 寫信給 ${esc(idol.emoji || "")} ${esc(idol.name)}</div>
+    <div class="letter-paper" id="letterPaper" style="background:${letterState.paper.bg}">
+      <div class="letter-to" id="letterTo" style="color:${letterState.paper.ink}">親愛的 ${esc(idol.name)}:</div>
+      <textarea id="letterText" class="letter-text" style="color:${letterState.paper.ink}" placeholder="想對他說什麼呢...&#10;&#10;寫下你的心情吧 💕"></textarea>
+      <div class="letter-from" id="letterFrom" style="color:${letterState.paper.ink}">－ 永遠支持你的粉絲</div>
+    </div>
+    <div class="selfie-tip">選信紙顏色 🎨</div>
+    <div class="letter-papers" id="letterPapers"></div>
+    <button class="primary-btn" id="letterSend" style="width:100%;margin-top:12px">💌 寄出(加好感度)</button>
+    <div class="draw-btns" style="margin-top:8px">
+      <button class="ghost-btn" id="letterBox">📬 看收藏的信(${a.letters.length})</button>
+      <button class="ghost-btn" id="letterBack">← 回好感度</button>
+    </div>`;
+
+  const papersEl = $("letterPapers");
+  LETTER_PAPERS.forEach(pp => {
+    const b = document.createElement("button");
+    b.className = "letter-paper-pick" + (pp.id === letterState.paper.id ? " on" : "");
+    b.style.background = pp.bg;
+    b.textContent = pp.name;
+    b.style.color = pp.ink;
+    b.onclick = () => {
+      letterState.paper = pp;
+      $("letterPaper").style.background = pp.bg;
+      $("letterTo").style.color = pp.ink;
+      $("letterText").style.color = pp.ink;
+      $("letterFrom").style.color = pp.ink;
+      papersEl.querySelectorAll(".letter-paper-pick").forEach(x => x.classList.remove("on"));
+      b.classList.add("on");
+    };
+    papersEl.appendChild(b);
+  });
+
+  $("letterSend").onclick = () => sendLetter(id);
+  $("letterBox").onclick = () => openLetterBox(id);
+  $("letterBack").onclick = () => openAffection(id);
+}
+
+function sendLetter(id) {
+  const a = affOf(id);
+  const idol = idols.find(i => i.id === id);
+  const it = AFF_INTERACTIONS.find(x => x.id === "letter");
+  const text = $("letterText").value.trim();
+  if (!text) { toast("先寫點什麼給他吧 💌"); return; }
+  // 存信
+  if (!a.letters) a.letters = [];
+  a.letters.unshift({ text, paper: letterState.paper.id, date: todayStr() });
+  if (a.letters.length > 50) a.letters = a.letters.slice(0, 50); // 最多存50封
+  // 加分(一天一次)
+  let added = 0;
+  if (!a.inter.done.includes("letter")) {
+    a.inter.done.push("letter");
+    a.points += it.pts;
+    added = it.pts;
+  }
+  saveAffection();
+  sfx.win();
+  const reply = LETTER_REPLIES[Math.floor(Math.random() * LETTER_REPLIES.length)];
+  const photo = (idol.gallery && idol.gallery[0]) || idol.photoData || idol.photoUrl;
+  // 寄出後顯示偶像反應
+  const area = $("affectionArea");
+  area.innerHTML = `
+    <div class="gift-react">
+      <div class="gift-react-stage">
+        ${photo ? `<img class="gift-react-photo" src="${esc(photo)}" alt="">` : `<div class="gift-react-emoji">${esc(idol.emoji || "💖")}</div>`}
+        <div class="gift-react-item">💌</div>
+      </div>
+      <div class="gift-react-msg">「${reply}」</div>
+      <div class="gift-react-pts">${added > 0 ? `好感度 +${added} 💌` : "今天加過分了 💗"}</div>
+      <button class="primary-btn" id="letterAgain" style="margin-top:16px">再寫一封 💌</button>
+      <button class="ghost-btn" id="letterHome" style="margin-top:8px;width:100%">回好感度頁</button>
+    </div>`;
+  $("letterAgain").onclick = () => openLetter(id);
+  $("letterHome").onclick = () => openAffection(id);
+}
+
+// 看收藏的信
+function openLetterBox(id) {
+  const a = affOf(id);
+  const idol = idols.find(i => i.id === id);
+  const letters = a.letters || [];
+  const area = $("affectionArea");
+  let list = "";
+  if (letters.length === 0) {
+    list = `<div class="setting-desc" style="text-align:center;margin:30px 0">還沒寫過信,快去寫第一封吧 💌</div>`;
+  } else {
+    letters.forEach(L => {
+      const pp = LETTER_PAPERS.find(p => p.id === L.paper) || LETTER_PAPERS[0];
+      list += `<div class="letter-saved" style="background:${pp.bg};color:${pp.ink}">
+        <div class="letter-saved-date">${esc(L.date)}</div>
+        <div class="letter-saved-text">${esc(L.text)}</div>
+      </div>`;
+    });
+  }
+  area.innerHTML = `
+    <div class="selfie-head">📬 寫給 ${esc(idol.name)} 的信</div>
+    <div class="letter-box-list">${list}</div>
+    <button class="ghost-btn" id="letterBoxBack" style="width:100%;margin-top:12px">← 回寫信</button>`;
+  $("letterBoxBack").onclick = () => openLetter(id);
 }
 
 /* ================== 貪吃蛇 🐍 ================== */
