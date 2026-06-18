@@ -3994,6 +3994,36 @@ const GIFTS = [
 ];
 function giftById(gid) { return GIFTS.find(g => g.id === gid); }
 
+// 禮物的專屬可愛反應(沒寫的用通用句)
+const GIFT_REPLIES = {
+  hamster:   "他抱著倉鼠玩偶捨不得放下 🥺",
+  bunny:     "他抱著兔子玩偶蹭了蹭 🐰",
+  bear:      "他抱著熊玩偶說好可愛 🐻",
+  teddy:     "他把泰迪熊放在床頭 🧸",
+  ring:      "他害羞地把戒指戴上了 💍",
+  crown:     "他戴上皇冠變成小公主了 👑",
+  phone:     "他開心地滑起手機 📱",
+  console:   "他立刻打開遊戲機玩了起來 🎮",
+  piano:     "他坐下來彈了一小段鋼琴 🎹",
+  flower:    "他把小花別在頭上 🌸",
+  bouquet:   "他抱著花束笑得好開心 💐",
+  diamond:   "他看著鑽石眼睛發亮 💎",
+  cake:      "他開心地吃起蛋糕 🍰",
+  glollipop: "他含著棒棒糖瞇起眼睛 🍭",
+  blanket:   "他裹著棉被說好暖 🛏️",
+  coat:      "他穿上外套轉了一圈 🧥",
+  scarf:     "他圍上圍巾說好溫暖 🧣",
+  headphone: "他戴上耳機聽起音樂 🎧",
+  camera:    "他拿起拍立得幫你拍照 📷",
+  polaroid:  "他拿起拍立得幫你拍照 📷",
+  balloon:   "他抓著氣球飄飄的好開心 🎈",
+  kite:      "他拉著風箏跑了起來 🪁",
+  card:      "他反覆讀著你寫的卡片 💌"
+};
+function giftReply(gid) {
+  return GIFT_REPLIES[gid] || "他收下禮物,開心地笑了 🥰";
+}
+
 function affOf(id) {
   if (!affection[id]) affection[id] = { points: 0, lastDaily: "", tasks: { date: "", done: [] }, inter: { date: "", done: [] }, rps: { date: "", left: RPS_DAILY }, coins: 0 };
   if (!affection[id].inter) affection[id].inter = { date: "", done: [] };
@@ -4002,6 +4032,7 @@ function affOf(id) {
   if (typeof affection[id].coins !== "number") affection[id].coins = 0; // 金幣
   if (!affection[id].bag) affection[id].bag = {}; // 食物背包 {foodId: 數量}
   if (!affection[id].giftBag) affection[id].giftBag = {}; // 禮物背包 {giftId: 數量}
+  if (!affection[id].gaveGifts) affection[id].gaveGifts = []; // 送過的禮物id(他會收藏)
   // 換日就清空今天的任務勾選 + 互動紀錄 + 猜拳場數
   const t = todayStr();
   if (affection[id].tasks.date !== t) affection[id].tasks = { date: t, done: [] };
@@ -4359,10 +4390,14 @@ function openFeed(id) {
   $("feedBack").onclick = () => openAffection(id);
 }
 
+let feedLock = false;
 function feedFood(id, fid) {
+  if (feedLock) return; // 防連點(手機快速雙擊會餵兩次)
   const a = affOf(id);
   const f = foodById(fid);
-  if ((a.bag[fid] || 0) <= 0) return;
+  if ((a.bag[fid] || 0) <= 0) { toast("這個食物沒了,去超市買吧 🛒"); return; }
+  feedLock = true;
+  setTimeout(() => { feedLock = false; }, 350);
   a.bag[fid]--;
   if (a.bag[fid] <= 0) delete a.bag[fid];
   a.points += f.pts; // 餵了就加好感度(每次都加)
@@ -4399,16 +4434,40 @@ function openGift(id) {
 }
 
 function giveGift(id, gid) {
+  if (feedLock) return; // 防連點
   const a = affOf(id);
   const g = giftById(gid);
-  if ((a.giftBag[gid] || 0) <= 0) return;
+  if ((a.giftBag[gid] || 0) <= 0) { toast("這個禮物沒了,去超市買吧 🛒"); return; }
+  feedLock = true;
+  setTimeout(() => { feedLock = false; }, 350);
   a.giftBag[gid]--;
   if (a.giftBag[gid] <= 0) delete a.giftBag[gid];
   a.points += g.pts; // 送了就加好感度
+  // 記住送過這個禮物(他會收藏,之後隨機拿出來)
+  if (!a.gaveGifts.includes(gid)) a.gaveGifts.push(gid);
   sfx.correct();
   saveAffection();
-  openGift(id);
-  toast(`${g.icon} 送出去了!${esc(idols.find(i=>i.id===id).name)} 好感度 +${g.pts} 🥰`);
+  showGiftReaction(id, g);
+}
+
+// 送禮反應畫面:偶像照片 + 禮物 + 專屬句子
+function showGiftReaction(id, g) {
+  const idol = idols.find(i => i.id === id);
+  const photo = (idol.gallery && idol.gallery[0]) || idol.photoData || idol.photoUrl;
+  const area = $("affectionArea");
+  area.innerHTML = `
+    <div class="gift-react">
+      <div class="gift-react-stage">
+        ${photo ? `<img class="gift-react-photo" src="${esc(photo)}" alt="">` : `<div class="gift-react-emoji">${esc(idol.emoji || "💖")}</div>`}
+        <div class="gift-react-item">${g.icon}</div>
+      </div>
+      <div class="gift-react-msg">「${esc(giftReply(g.id))}」</div>
+      <div class="gift-react-pts">好感度 +${g.pts} 🥰</div>
+      <button class="primary-btn" id="giftReactBack" style="margin-top:16px">繼續送 🎁</button>
+      <button class="ghost-btn" id="giftReactHome" style="margin-top:8px;width:100%">回好感度頁</button>
+    </div>`;
+  $("giftReactBack").onclick = () => openGift(id);
+  $("giftReactHome").onclick = () => openAffection(id);
 }
 
 /* ================== 貪吃蛇 🐍 ================== */
@@ -5011,6 +5070,21 @@ function listenSettings() {
       });
       setDoc(doc(db, "users", uid, "settings", "prefs"),
         { affection, rpsRefillDone: refillTag }, { merge: true });
+    }
+    // 一次性:把余悸的好感度調回 Lv.5(80分),修正餵食bug造成的暴衝
+    const fixTag = "yuji-lv5-fix";
+    if (data.affFixDone !== fixTag && idols && idols.length > 0) {
+      let fixed = false;
+      idols.forEach(i => {
+        if (i.name === "余悸" && affection[i.id]) {
+          affection[i.id].points = 80; // Lv.5 起點
+          fixed = true;
+        }
+      });
+      if (fixed) {
+        setDoc(doc(db, "users", uid, "settings", "prefs"),
+          { affection, affFixDone: fixTag }, { merge: true });
+      }
     }
     rerenderActiveList(); // 標準改了,文章徽章跟著更新
   });
