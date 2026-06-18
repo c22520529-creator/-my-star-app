@@ -667,6 +667,16 @@
     font-size:1.4rem;cursor:pointer;padding:0;
   }
   .selfie-sticker.on{border-color:var(--accent-2);background:#f3eaff;transform:scale(1.1);}
+
+  /* ---------- 幫他慶生 ---------- */
+  .bday-stage{
+    position:relative;width:300px;max-width:90%;aspect-ratio:1;margin:0 auto;
+    border-radius:18px;background:linear-gradient(160deg,#fff0f7,#eef4ff);
+    box-shadow:var(--shadow);cursor:pointer;overflow:hidden;
+    display:flex;align-items:center;justify-content:center;
+  }
+  body.dark .bday-stage{background:linear-gradient(160deg,#2e2236,#222c38);}
+  .bday-cake{font-size:6rem;pointer-events:none;}
   .aff-inter{
     display:flex;justify-content:space-between;align-items:center;
     background:var(--card);border:2px solid #ffd9ec;border-radius:14px;
@@ -3978,9 +3988,10 @@ const AFF_TASKS = [
 // 升級解鎖的互動(每個每天一次)
 const AFF_INTERACTIONS = [
   { id: "pat",   icon: "🤚", label: "摸摸他",   lv: 2, pts: 2, reply: "他笑了 😊" },
-  { id: "draw",  icon: "🎨", label: "一起畫畫", lv: 3, pts: 3, reply: "你們一起畫畫,好開心 🎨" },
+  { id: "draw",  icon: "🎨", label: "一起畫畫", lv: 10, pts: 3, reply: "你們一起畫畫,好開心 🎨" },
   { id: "feed",  icon: "🍚", label: "餵他吃飯", lv: 4, pts: 3, reply: "他吃得好開心!🍴" },
-  { id: "selfie",icon: "📸", label: "一起自拍", lv: 5, pts: 3, reply: "你們拍了一張可愛的合照 📸" },
+  { id: "selfie",icon: "📸", label: "一起自拍", lv: 12, pts: 3, reply: "你們拍了一張可愛的合照 📸" },
+  { id: "bday",  icon: "🎂", label: "幫他慶生", lv: 8, pts: 4, reply: "你幫他辦了一場生日派對 🎉" },
   { id: "gift",  icon: "🎁", label: "送禮物",   lv: 6, pts: 3, reply: "他超喜歡這個禮物!🥰" },
   { id: "music", icon: "🎵", label: "一起聽歌", lv: 8, pts: 3, reply: "你們一起聽歌,好幸福 🎶" }
 ];
@@ -4259,6 +4270,7 @@ function openAffection(id) {
     const isGift = it.id === "gift"; // 送禮物特別:從禮物背包選
     const isDraw = it.id === "draw"; // 畫畫特別:開畫布
     const isSelfie = it.id === "selfie"; // 自拍特別:開相框
+    const isBday = it.id === "bday"; // 慶生特別:開佈置
     const row = document.createElement("button");
     row.className = "aff-inter" + (!unlocked ? " locked" : "");
     if (!unlocked) {
@@ -4275,6 +4287,8 @@ function openAffection(id) {
       row.innerHTML = `<span>${it.icon} ${esc(it.label)}</span><span class="aff-task-pts">${gotToday ? "今天加過分了 💗" : "開畫布 🎨"}</span>`;
     } else if (isSelfie) {
       row.innerHTML = `<span>${it.icon} ${esc(it.label)}</span><span class="aff-task-pts">${gotToday ? "今天加過分了 💗" : "開相框 📸"}</span>`;
+    } else if (isBday) {
+      row.innerHTML = `<span>${it.icon} ${esc(it.label)}</span><span class="aff-task-pts">${gotToday ? "今天加過分了 💗" : "佈置 🎂"}</span>`;
     } else {
       row.innerHTML = `<span>${it.icon} ${esc(it.label)}</span><span class="aff-task-pts">${gotToday ? "今天加過分了 💗" : "+" + it.pts}</span>`;
     }
@@ -4283,6 +4297,7 @@ function openAffection(id) {
       if (isGift) { openGift(id); return; } // 送禮物 → 開禮物背包
       if (isDraw) { openDraw(id); return; } // 畫畫 → 開畫布
       if (isSelfie) { openSelfie(id); return; } // 自拍 → 開相框
+      if (isBday) { openBday(id); return; } // 慶生 → 開佈置
       if (!a.inter.done.includes(it.id)) {
         // 今天第一次 → 加分
         a.inter.done.push(it.id);
@@ -4803,6 +4818,108 @@ function finishSelfie(id) {
   }
   sfx.win();
   toast(added > 0 ? `📸 喀嚓!拍到可愛合照 ${esc(idol.name)} 好感度 +${added}` : `📸 喀嚓!好可愛的合照`);
+  openAffection(id);
+}
+
+/* ================== 幫他慶生 🎂 ================== */
+const BDAY_CAKES = ["🎂", "🍰", "🧁", "🍮"];        // 選蛋糕
+const BDAY_DECOS = ["🕯️", "🎈", "🎉", "🎊", "⭐", "💖", "🎀", "🌟", "🍓", "✨", "🎁", "🌈"]; // 裝飾
+let bdayState = null;
+
+function openBday(id) {
+  const idol = idols.find(i => i.id === id);
+  const area = $("affectionArea");
+  bdayState = { id, cake: BDAY_CAKES[0], decos: [] };
+  area.innerHTML = `
+    <div class="selfie-head">🎂 幫 ${esc(idol.emoji || "")} ${esc(idol.name)} 慶生</div>
+    <div class="bday-stage" id="bdayStage">
+      <div class="bday-cake" id="bdayCake">${bdayState.cake}</div>
+      <div class="selfie-layer" id="bdayLayer"></div>
+    </div>
+    <div class="selfie-tip">選蛋糕 🍰</div>
+    <div class="selfie-stickers" id="bdayCakes"></div>
+    <div class="selfie-tip">點裝飾,再點蛋糕區貼上去 ✨</div>
+    <div class="selfie-stickers" id="bdayDecos"></div>
+    <div class="draw-btns">
+      <button class="ghost-btn" id="bdayClear">🗑️ 清除裝飾</button>
+    </div>
+    <button class="primary-btn" id="bdayDone" style="width:100%;margin-top:10px">🎉 開始慶生(加好感度)</button>
+    <button class="ghost-btn" id="bdayBack" style="width:100%;margin-top:8px">← 回好感度頁</button>`;
+
+  // 選蛋糕
+  const cakesEl = $("bdayCakes");
+  BDAY_CAKES.forEach(ck => {
+    const b = document.createElement("button");
+    b.className = "selfie-sticker" + (ck === bdayState.cake ? " on" : "");
+    b.textContent = ck;
+    b.onclick = () => {
+      bdayState.cake = ck;
+      $("bdayCake").textContent = ck;
+      cakesEl.querySelectorAll(".selfie-sticker").forEach(x => x.classList.remove("on"));
+      b.classList.add("on");
+    };
+    cakesEl.appendChild(b);
+  });
+  // 裝飾選擇
+  const decosEl = $("bdayDecos");
+  BDAY_DECOS.forEach(em => {
+    const b = document.createElement("button");
+    b.className = "selfie-sticker";
+    b.textContent = em;
+    b.onclick = () => {
+      bdayState.picked = em;
+      decosEl.querySelectorAll(".selfie-sticker").forEach(x => x.classList.remove("on"));
+      b.classList.add("on");
+    };
+    decosEl.appendChild(b);
+  });
+
+  // 點蛋糕區 → 貼裝飾
+  const stage = $("bdayStage");
+  stage.onclick = e => {
+    if (!bdayState.picked) { toast("先選一個裝飾喔 ✨"); return; }
+    const r = stage.getBoundingClientRect();
+    const x = ((e.clientX - r.left) / r.width) * 100;
+    const y = ((e.clientY - r.top) / r.height) * 100;
+    bdayState.decos.push({ emoji: bdayState.picked, x, y });
+    sfx.tap();
+    renderBdayDecos();
+  };
+
+  $("bdayClear").onclick = () => { bdayState.decos = []; renderBdayDecos(); };
+  $("bdayDone").onclick = () => finishBday(id);
+  $("bdayBack").onclick = () => openAffection(id);
+}
+
+function renderBdayDecos() {
+  const layer = $("bdayLayer");
+  if (!layer) return;
+  layer.innerHTML = "";
+  bdayState.decos.forEach(d => {
+    const el = document.createElement("span");
+    el.className = "selfie-placed";
+    el.textContent = d.emoji;
+    el.style.left = d.x + "%";
+    el.style.top = d.y + "%";
+    layer.appendChild(el);
+  });
+}
+
+function finishBday(id) {
+  const a = affOf(id);
+  const idol = idols.find(i => i.id === id);
+  const it = AFF_INTERACTIONS.find(x => x.id === "bday");
+  let added = 0;
+  if (!a.inter.done.includes("bday")) {
+    a.inter.done.push("bday");
+    a.points += it.pts;
+    added = it.pts;
+    saveAffection();
+  }
+  sfx.win();
+  // 慶生撒彩帶
+  startConfetti();
+  toast(added > 0 ? `🎉 生日快樂!${esc(idol.name)} 好感度 +${added} 🎂` : `🎉 生日快樂 ${esc(idol.name)}!🎂`);
   openAffection(id);
 }
 
