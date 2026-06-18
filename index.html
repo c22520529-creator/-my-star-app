@@ -3881,14 +3881,16 @@ const AFF_INTERACTIONS = [
 ];
 
 function affOf(id) {
-  if (!affection[id]) affection[id] = { points: 0, lastDaily: "", tasks: { date: "", done: [] }, inter: { date: "", done: [] }, rps: { date: "", gamesLeft: 3 } };
+  if (!affection[id]) affection[id] = { points: 0, lastDaily: "", tasks: { date: "", done: [] }, inter: { date: "", done: [] }, rps: { date: "", left: 3 }, coins: 0 };
   if (!affection[id].inter) affection[id].inter = { date: "", done: [] };
-  if (!affection[id].rps) affection[id].rps = { date: "", gamesLeft: 3 };
+  if (!affection[id].rps) affection[id].rps = { date: "", left: 3 };
+  if (typeof affection[id].rps.left !== "number") affection[id].rps.left = 3; // 舊資料相容
+  if (typeof affection[id].coins !== "number") affection[id].coins = 0; // 金幣
   // 換日就清空今天的任務勾選 + 互動紀錄 + 猜拳場數
   const t = todayStr();
   if (affection[id].tasks.date !== t) affection[id].tasks = { date: t, done: [] };
   if (affection[id].inter.date !== t) affection[id].inter = { date: t, done: [] };
-  if (affection[id].rps.date !== t) affection[id].rps = { date: t, gamesLeft: 3 };
+  if (affection[id].rps.date !== t) affection[id].rps = { date: t, left: 3 };
   return affection[id];
 }
 function affLevel(points) { return Math.floor(points / AFF_LEVEL_STEP) + 1; }
@@ -3952,7 +3954,8 @@ function openAffection(id) {
     <div class="aff-inters" id="affInters"></div>
 
     <div class="bd-section-title" style="margin-top:20px">跟他猜拳 🪙</div>
-    <button class="primary-btn" id="affRpsBtn" style="width:100%;max-width:340px;display:block;margin:0 auto;font-size:1.05rem;padding:14px">🪙 開始猜拳遊戲</button>
+    <div style="text-align:center;color:var(--ink-soft);font-weight:700;margin-bottom:10px">💰 ${esc(idol.name)} 的錢包：<b style="color:var(--accent-2)">${a.coins}</b> 元</div>
+    <button class="primary-btn" id="affRpsBtn" style="width:100%;max-width:340px;display:block;margin:0 auto;font-size:1.05rem;padding:14px">🪙 開始猜拳遊戲（贏錢）</button>
 
     <button class="ghost-btn" id="affBackPick" style="margin-top:16px;width:100%">← 換一位養</button>`;
 
@@ -4058,7 +4061,7 @@ function drawRpsGame() {
         <span>贏 <b>${g.wins}</b></span>
         <span>輸 <b>${g.losses}</b></span>
       </div>
-      <div class="rps-result" id="rpsResult">${g.lastMsg || `出一個跟他比!玩完 20 次,贏幾次加幾分 💕`}</div>
+      <div class="rps-result" id="rpsResult">${g.lastMsg || `出一個跟他比!贏一次 +10 元、輸一次 -5 元 🪙`}</div>
       <div class="rps-hands">
         ${RPS_HANDS.map(h => `<button class="rps-hand" data-hand="${h.key}">${h.icon}</button>`).join("")}
       </div>
@@ -4111,19 +4114,19 @@ function rpsGameOver() {
   const a = affOf(g.id);
   // 玩完一場才扣場數
   a.rps.left = Math.max(0, a.rps.left - 1);
-  // 結算:贏幾次 +幾分、輸幾次 -幾分(1 比 1),平手不算
-  const delta = g.wins - g.losses;
-  a.points = Math.max(0, a.points + delta);
-  if (delta > 0) sfx.win(); else sfx.lose();
+  // 結算:贏一次 +10 元、輸一次 -5 元,平手不算,金幣最低 0
+  const earned = g.wins * 10 - g.losses * 5;
+  a.coins = Math.max(0, a.coins + earned);
+  if (earned > 0) sfx.win(); else sfx.lose();
   saveAffection();
   const idol = idols.find(i => i.id === g.id);
   const area = $("affectionArea");
-  const deltaText = delta > 0 ? `好感度 +${delta} 💕` : (delta < 0 ? `好感度 ${delta} 💔` : "好感度沒變");
+  const earnText = earned >= 0 ? `賺了 ${earned} 元 🪙` : `賠了 ${-earned} 元 💸`;
   area.innerHTML = `
     <div class="game-over">
       🎉 20 次玩完!<br>
       贏 ${g.wins} 次 · 輸 ${g.losses} 次 · 平手 ${20 - g.wins - g.losses} 次<br>
-      ${deltaText}<br>
+      ${earnText}（${esc(idol.name)} 的錢包:${a.coins} 元）<br>
       今天還剩 ${a.rps.left} 場<br>
       <button class="primary-btn" id="rpsAgain" style="margin-top:12px">${a.rps.left > 0 ? "再玩一場 🔄" : "回好感度頁"}</button>
     </div>`;
