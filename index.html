@@ -573,6 +573,31 @@
     padding:22px;text-align:center;
   }
   .aff-photo{width:90px;height:90px;border-radius:50%;object-fit:cover;margin-bottom:12px;}
+  .aff-photo-wrap{position:relative;display:inline-block;}
+  .aff-held{
+    position:absolute;right:-6px;bottom:8px;font-size:1.8rem;
+    background:#fff;border-radius:50%;padding:2px 5px;
+    box-shadow:0 3px 10px rgba(0,0,0,.18);animation:gachaPop .4s ease-out;
+  }
+  body.dark .aff-held{background:#2a2440;}
+  .aff-held-msg{
+    background:#fff4f9;border-radius:12px;padding:8px 12px;margin-bottom:10px;
+    font-weight:700;font-size:.9rem;color:var(--accent-2);
+  }
+  body.dark .aff-held-msg{background:#2e2236;}
+  /* 送禮反應畫面 */
+  .gift-react{max-width:340px;margin:0 auto;text-align:center;}
+  .gift-react-stage{position:relative;display:inline-block;margin-bottom:14px;}
+  .gift-react-photo{width:140px;height:140px;border-radius:24px;object-fit:cover;box-shadow:var(--shadow);}
+  .gift-react-emoji{font-size:5rem;}
+  .gift-react-item{
+    position:absolute;right:-12px;bottom:-8px;font-size:3rem;
+    background:#fff;border-radius:50%;padding:4px 8px;box-shadow:0 4px 14px rgba(0,0,0,.2);
+    animation:gachaPop .5s ease-out;
+  }
+  body.dark .gift-react-item{background:#2a2440;}
+  .gift-react-msg{font-weight:800;font-size:1.1rem;line-height:1.6;margin-bottom:8px;}
+  .gift-react-pts{color:var(--accent-2);font-weight:800;margin-bottom:4px;}
   .aff-emoji{font-size:3.5rem;margin-bottom:12px;}
   .aff-name{font-size:1.2rem;font-weight:800;margin-bottom:14px;}
   .aff-name b{color:var(--accent-2);}
@@ -4088,13 +4113,24 @@ function openAffection(id) {
   const dailyDone = a.lastDaily === today;
   const photo = (idol.gallery && idol.gallery[0]) || idol.photoData || idol.photoUrl;
 
+  // 🎁 平常隨機拿著一個送過的禮物(約 40% 機率才出現,像偶爾的驚喜)
+  let heldGift = null;
+  if (a.gaveGifts && a.gaveGifts.length > 0 && Math.random() < 0.4) {
+    const gid = a.gaveGifts[Math.floor(Math.random() * a.gaveGifts.length)];
+    heldGift = giftById(gid);
+  }
+
   const area = $("affectionArea");
   area.innerHTML = `
     <div class="aff-card" style="border-color:${esc(idol.color || "#ffb3d1")}">
-      ${photo ? `<img class="aff-photo" src="${esc(photo)}" alt="">` : `<div class="aff-emoji">${esc(idol.emoji || "💖")}</div>`}
+      <div class="aff-photo-wrap">
+        ${photo ? `<img class="aff-photo" src="${esc(photo)}" alt="">` : `<div class="aff-emoji">${esc(idol.emoji || "💖")}</div>`}
+        ${heldGift ? `<div class="aff-held" title="他收藏著你送的${esc(heldGift.name)}">${heldGift.icon}</div>` : ""}
+      </div>
       <div class="aff-name">${esc(idol.emoji || "")} ${esc(idol.name)}　<b>Lv.${lv}</b></div>
       <div class="aff-bar"><div class="aff-bar-fill" style="width:${pct}%;background:${esc(idol.color || "#ff7eb6")}"></div></div>
       <div class="aff-bar-txt">好感度 ${inLevel}/${AFF_LEVEL_STEP}（總 ${a.points}）</div>
+      ${heldGift ? `<div class="aff-held-msg">他正拿著你送的 ${heldGift.icon} ${esc(heldGift.name)} 🥹</div>` : ""}
       <div class="aff-msg">「${esc(msg)}」</div>
     </div>
 
