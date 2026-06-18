@@ -711,6 +711,36 @@
   .pet-bar{flex:1;height:14px;background:#eee;border-radius:999px;overflow:hidden;}
   body.dark .pet-bar{background:#3a3550;}
   .pet-bar-fill{height:100%;border-radius:999px;transition:width .3s;}
+
+  /* ---------- 一起看星星 ---------- */
+  .star-sky{
+    position:relative;width:300px;max-width:90%;aspect-ratio:1;margin:0 auto;
+    border-radius:18px;overflow:hidden;cursor:pointer;
+    background:linear-gradient(180deg,#1a1a4e 0%,#2d2a6e 60%,#4a3a7a 100%);
+    box-shadow:var(--shadow);
+  }
+  .star-moon{position:absolute;top:14px;right:18px;font-size:2.4rem;pointer-events:none;}
+  .star-idol{
+    position:absolute;bottom:10px;left:50%;transform:translateX(-50%);
+    width:64px;height:64px;border-radius:50%;object-fit:cover;
+    border:3px solid rgba(255,255,255,.6);pointer-events:none;
+  }
+  .star-svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;}
+  .star-twinkle{animation:twinkle 1.5s ease-in-out infinite;}
+  @keyframes twinkle{0%,100%{opacity:1}50%{opacity:.5}}
+  .star-hint{
+    position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    color:rgba(255,255,255,.8);font-weight:700;pointer-events:none;font-size:.95rem;
+  }
+  .shooting-star{
+    position:absolute;font-size:1.6rem;pointer-events:none;
+    animation:shoot 1.2s linear forwards;
+  }
+  @keyframes shoot{
+    0%{left:-10%;opacity:0;transform:translateY(0) rotate(20deg);}
+    20%{opacity:1;}
+    100%{left:110%;opacity:0;transform:translateY(120px) rotate(20deg);}
+  }
   .aff-inter{
     display:flex;justify-content:space-between;align-items:center;
     background:var(--card);border:2px solid #ffd9ec;border-radius:14px;
@@ -4023,6 +4053,7 @@ const AFF_TASKS = [
 const AFF_INTERACTIONS = [
   { id: "pat",   icon: "🤚", label: "摸摸他",   lv: 2,  pts: 2, reply: "他笑了 😊" },
   { id: "feed",  icon: "🍚", label: "餵他吃飯", lv: 4,  pts: 3, reply: "他吃得好開心!🍴" },
+  { id: "star",  icon: "🌟", label: "一起看星星", lv: 4, pts: 3, reply: "你們一起看了滿天星星 🌟" },
   { id: "gift",  icon: "🎁", label: "送禮物",   lv: 6,  pts: 3, reply: "他超喜歡這個禮物!🥰" },
   { id: "pet",   icon: "🐾", label: "養寵物",   lv: 6,  pts: 3, reply: "你們一起照顧寵物 🐾" },
   { id: "music", icon: "🎵", label: "一起聽歌", lv: 8,  pts: 3, reply: "你們一起聽歌,好幸福 🎶" },
@@ -4309,6 +4340,7 @@ function openAffection(id) {
     const isBday = it.id === "bday"; // 慶生特別:開佈置
     const isCook = it.id === "cook"; // 做飯特別:選食材
     const isPet = it.id === "pet"; // 養寵物特別:開寵物
+    const isStar = it.id === "star"; // 看星星特別:開夜空
     const row = document.createElement("button");
     row.className = "aff-inter" + (!unlocked ? " locked" : "");
     if (!unlocked) {
@@ -4332,6 +4364,8 @@ function openAffection(id) {
     } else if (isPet) {
       const pet = (affOf(id).pet && affOf(id).pet.animal) || "🐾";
       row.innerHTML = `<span>${pet} ${esc(it.label)}</span><span class="aff-task-pts">${gotToday ? "今天加過分了 💗" : "照顧 " + pet}</span>`;
+    } else if (isStar) {
+      row.innerHTML = `<span>${it.icon} ${esc(it.label)}</span><span class="aff-task-pts">${gotToday ? "今天加過分了 💗" : "看夜空 🌌"}</span>`;
     } else {
       row.innerHTML = `<span>${it.icon} ${esc(it.label)}</span><span class="aff-task-pts">${gotToday ? "今天加過分了 💗" : "+" + it.pts}</span>`;
     }
@@ -4343,6 +4377,7 @@ function openAffection(id) {
       if (isBday) { openBday(id); return; } // 慶生 → 開佈置
       if (isCook) { openCook(id); return; } // 做飯 → 開廚房
       if (isPet) { openPet(id); return; } // 養寵物 → 開寵物
+      if (isStar) { openStar(id); return; } // 看星星 → 開夜空
       if (!a.inter.done.includes(it.id)) {
         // 今天第一次 → 加分
         a.inter.done.push(it.id);
@@ -5175,6 +5210,109 @@ function finishPet(id) {
   }
   sfx.win();
   toast(added > 0 ? `${a.pet.animal} 被照顧得好好!${esc(idol.name)} 好感度 +${added} 🐾` : `${a.pet.animal} 好幸福 🐾`);
+  openAffection(id);
+}
+
+/* ================== 一起看星星 🌟 ================== */
+const STAR_WISHES = [
+  "希望他永遠健康快樂 🌟",
+  "希望他的夢想都實現 ✨",
+  "希望能一直支持他 💫",
+  "希望他每天都開開心心 💖",
+  "希望他知道有人很愛他 🥰",
+  "希望我們的故事一直繼續 🌠"
+];
+let starState = null;
+
+function openStar(id) {
+  const idol = idols.find(i => i.id === id);
+  const photo = (idol.gallery && idol.gallery[0]) || idol.photoData || idol.photoUrl;
+  const area = $("affectionArea");
+  starState = { id, stars: [], shootTimer: null };
+  area.innerHTML = `
+    <div class="selfie-head">🌟 跟 ${esc(idol.emoji || "")} ${esc(idol.name)} 一起看星星</div>
+    <div class="star-sky" id="starSky">
+      <div class="star-moon">🌙</div>
+      ${photo ? `<img class="star-idol" src="${esc(photo)}" alt="">` : ""}
+      <svg class="star-svg" id="starSvg" viewBox="0 0 300 300" preserveAspectRatio="none"></svg>
+      <div class="star-hint" id="starHint">點點看夜空 👆</div>
+    </div>
+    <div class="selfie-tip">點夜空 → 冒出星星,還會自動連成星座 ✨</div>
+    <div class="draw-btns">
+      <button class="ghost-btn" id="starClear">🗑️ 清空夜空</button>
+      <button class="ghost-btn" id="starShoot">💫 許願流星</button>
+    </div>
+    <button class="primary-btn" id="starWish" style="width:100%;margin-top:10px">🌟 許願(加好感度)</button>
+    <button class="ghost-btn" id="starBack" style="width:100%;margin-top:8px">← 回好感度頁</button>`;
+
+  const sky = $("starSky");
+  sky.onclick = e => {
+    const r = sky.getBoundingClientRect();
+    const x = ((e.clientX - r.left) / r.width) * 300;
+    const y = ((e.clientY - r.top) / r.height) * 300;
+    if (y > 285 || x < 5 || x > 295) return; // 邊邊不算
+    starState.stars.push({ x, y });
+    $("starHint").style.display = "none";
+    sfx.tap();
+    renderStars();
+  };
+  $("starClear").onclick = () => {
+    starState.stars = [];
+    renderStars();
+    $("starHint").style.display = "";
+  };
+  $("starShoot").onclick = () => shootStar();
+  $("starWish").onclick = () => finishStar(id);
+  $("starBack").onclick = () => { if (starState.shootTimer) clearInterval(starState.shootTimer); openAffection(id); };
+
+  // 偶爾自動有流星
+  starState.shootTimer = setInterval(() => { if (Math.random() < 0.5) shootStar(); }, 4000);
+}
+
+function renderStars() {
+  const svg = $("starSvg");
+  if (!svg) return;
+  const pts = starState.stars;
+  let html = "";
+  // 先畫連線(星座)
+  for (let i = 1; i < pts.length; i++) {
+    html += `<line x1="${pts[i-1].x}" y1="${pts[i-1].y}" x2="${pts[i].x}" y2="${pts[i].y}" stroke="rgba(255,255,255,.5)" stroke-width="1"/>`;
+  }
+  // 再畫星星
+  pts.forEach(p => {
+    html += `<text x="${p.x}" y="${p.y}" text-anchor="middle" dominant-baseline="central" font-size="16" class="star-twinkle">⭐</text>`;
+  });
+  svg.innerHTML = html;
+}
+
+function shootStar() {
+  const sky = $("starSky");
+  if (!sky) return;
+  const s = document.createElement("div");
+  s.className = "shooting-star";
+  s.textContent = "🌠";
+  s.style.top = (10 + Math.random() * 40) + "%";
+  s.style.left = "-10%";
+  sky.appendChild(s);
+  setTimeout(() => s.remove(), 1200);
+}
+
+function finishStar(id) {
+  if (starState.shootTimer) clearInterval(starState.shootTimer);
+  const a = affOf(id);
+  const idol = idols.find(i => i.id === id);
+  const it = AFF_INTERACTIONS.find(x => x.id === "star");
+  if (starState.stars.length === 0) { toast("先點幾顆星星吧 ⭐"); return; }
+  const wish = STAR_WISHES[Math.floor(Math.random() * STAR_WISHES.length)];
+  let added = 0;
+  if (!a.inter.done.includes("star")) {
+    a.inter.done.push("star");
+    a.points += it.pts;
+    added = it.pts;
+    saveAffection();
+  }
+  sfx.win();
+  toast(`🌟 ${wish}${added > 0 ? ` ${esc(idol.name)} 好感度 +${added}` : ""}`);
   openAffection(id);
 }
 
