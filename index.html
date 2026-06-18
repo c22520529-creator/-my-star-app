@@ -4055,14 +4055,20 @@ function openAffection(id) {
   AFF_INTERACTIONS.forEach(it => {
     const unlocked = lv >= it.lv;
     const gotToday = a.inter.done.includes(it.id); // 今天是否已經加過分
+    const isFeed = it.id === "feed"; // 餵飯特別:從背包選食物
     const row = document.createElement("button");
     row.className = "aff-inter" + (!unlocked ? " locked" : "");
     if (!unlocked) {
       row.innerHTML = `<span>🔒 ${it.icon} ${esc(it.label)}</span><span class="aff-task-pts">Lv.${it.lv} 解鎖</span>`;
+    } else if (isFeed) {
+      // 餵飯顯示背包食物總數
+      const bagCount = Object.values(a.bag).reduce((s, n) => s + n, 0);
+      row.innerHTML = `<span>${it.icon} ${esc(it.label)}</span><span class="aff-task-pts">🎒 ${bagCount} 個食物</span>`;
     } else {
       row.innerHTML = `<span>${it.icon} ${esc(it.label)}</span><span class="aff-task-pts">${gotToday ? "今天加過分了 💗" : "+" + it.pts}</span>`;
     }
     if (unlocked) row.onclick = () => {
+      if (isFeed) { openFeed(id); return; } // 餵飯 → 開背包
       if (!a.inter.done.includes(it.id)) {
         // 今天第一次 → 加分
         a.inter.done.push(it.id);
@@ -4245,6 +4251,46 @@ function buyFood(id, fid) {
   saveAffection();
   openShop(id); // 重畫,更新錢包和擁有數
   toast(`買了 ${f.icon} ${f.name}!💰 剩 ${a.coins} 元`);
+}
+
+/* ================== 餵食(從背包選) 🍚 ================== */
+function openFeed(id) {
+  const idol = idols.find(i => i.id === id);
+  const a = affOf(id);
+  const area = $("affectionArea");
+  // 背包裡有的食物
+  const owned = FOODS.filter(f => (a.bag[f.id] || 0) > 0);
+  let body;
+  if (owned.length === 0) {
+    body = `<div class="empty">背包空空的~<br>先去 🛒 超市買食物吧!</div>`;
+  } else {
+    body = `<div class="shop-grid">` + owned.map(f => `
+      <button class="shop-item" data-feed="${f.id}">
+        <div class="shop-emoji">${f.icon}</div>
+        <div class="shop-name">${esc(f.name)}</div>
+        <div class="shop-price">+${f.pts}💕</div>
+        <div class="shop-owned">${a.bag[f.id]}</div>
+      </button>`).join("") + `</div>`;
+  }
+  area.innerHTML = `
+    <div class="shop-head">🍚 餵 ${esc(idol.name)} 吃東西<br><span class="shop-coins">選一個背包裡的食物</span></div>
+    ${body}
+    <button class="ghost-btn" id="feedBack" style="margin-top:16px;width:100%">← 回好感度頁</button>`;
+  area.querySelectorAll("[data-feed]").forEach(b => b.onclick = () => feedFood(id, b.dataset.feed));
+  $("feedBack").onclick = () => openAffection(id);
+}
+
+function feedFood(id, fid) {
+  const a = affOf(id);
+  const f = foodById(fid);
+  if ((a.bag[fid] || 0) <= 0) return;
+  a.bag[fid]--;
+  if (a.bag[fid] <= 0) delete a.bag[fid];
+  a.points += f.pts; // 餵了就加好感度(每次都加)
+  sfx.correct();
+  saveAffection();
+  openFeed(id); // 重畫背包
+  toast(`${f.icon} 好好吃!${esc(idols.find(i=>i.id===id).name)} 好感度 +${f.pts} 💕`);
 }
 
 /* ================== 貪吃蛇 🐍 ================== */
