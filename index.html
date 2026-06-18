@@ -4598,13 +4598,11 @@ function rpsGameOver() {
   };
 }
 
+let lastAffSave = 0; // 上次本地存好感度的時間(擋雲端回寫蓋掉剛改的)
 function saveAffection() {
-  // 注意:不能用 merge 合併 affection,否則刪掉的禮物/食物(key 被 delete)
-  // 會因為合併而被舊資料補回來,造成「送了禮物數量卻沒變少」的 bug。
-  // 用 dot-path 直接把整個 affection 欄位「取代」掉。
+  lastAffSave = Date.now();
   updateDoc(doc(db, "users", uid, "settings", "prefs"), { affection })
     .catch(() => {
-      // 文件還不存在時,改用 setDoc 建立
       setDoc(doc(db, "users", uid, "settings", "prefs"), { affection }, { merge: true });
     });
 }
@@ -6226,7 +6224,11 @@ function listenSettings() {
     gachaDaily = data.gachaDaily || { date: "", left: 3 }; // 每日抽卡
     fortuneToday = data.fortuneToday || null; // 今天的籤
     fortuneLog = data.fortuneLog || []; // 籤收藏冊
-    affection = data.affection || {}; // 好感度
+    // 好感度:如果剛剛(3秒內)本地才改過,就不要用雲端資料蓋回來
+    // (避免送禮/餵食扣掉後,延遲的雲端回寫又把數量補回去的 bug)
+    if (Date.now() - lastAffSave > 3000) {
+      affection = data.affection || {};
+    }
     // 一次性:把今天的猜拳場數補滿(用日期+版本標記,只補一次)
     const refillTag = "rps-refill-v3-" + todayStr();
     if (data.rpsRefillDone !== refillTag) {
