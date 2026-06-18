@@ -1608,7 +1608,7 @@ import {
   getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import {
-  getFirestore, collection, doc, addDoc, setDoc, deleteDoc,
+  getFirestore, collection, doc, addDoc, setDoc, deleteDoc, updateDoc,
   onSnapshot, query, orderBy, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
@@ -4599,7 +4599,14 @@ function rpsGameOver() {
 }
 
 function saveAffection() {
-  setDoc(doc(db, "users", uid, "settings", "prefs"), { affection }, { merge: true });
+  // 注意:不能用 merge 合併 affection,否則刪掉的禮物/食物(key 被 delete)
+  // 會因為合併而被舊資料補回來,造成「送了禮物數量卻沒變少」的 bug。
+  // 用 dot-path 直接把整個 affection 欄位「取代」掉。
+  updateDoc(doc(db, "users", uid, "settings", "prefs"), { affection })
+    .catch(() => {
+      // 文件還不存在時,改用 setDoc 建立
+      setDoc(doc(db, "users", uid, "settings", "prefs"), { affection }, { merge: true });
+    });
 }
 
 /* ================== 超市 🛒 ================== */
