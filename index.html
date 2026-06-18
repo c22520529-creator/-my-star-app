@@ -3876,6 +3876,7 @@ function drawFortuneBook() {
 /* ================== 好感度養成 💌 ================== */
 // 每一級需要的好感度(累積),等級小語
 const AFF_LEVEL_STEP = 20; // 每 20 點升一級
+const RPS_DAILY = 5;       // 每天可玩幾場猜拳
 const AFF_MSGS = [
   "你們的故事才剛開始 🌱",
   "你開始更了解他了 💗",
@@ -3943,18 +3944,62 @@ const FOODS = [
 ];
 function foodById(fid) { return FOODS.find(f => f.id === fid); }
 
+// 超市禮物清單(id, emoji, 名稱, 價錢, 送了加好感度)
+const GIFTS = [
+  { id: "flower",    icon: "🌸", name: "小花",     price: 30, pts: 2 },
+  { id: "balloon",   icon: "🎈", name: "氣球",     price: 35, pts: 2 },
+  { id: "card",      icon: "💌", name: "賀卡",     price: 35, pts: 2 },
+  { id: "ribbon",    icon: "🎀", name: "蝴蝶結",   price: 40, pts: 2 },
+  { id: "yoyo",      icon: "🪀", name: "溜溜球",   price: 40, pts: 2 },
+  { id: "dice",      icon: "🎲", name: "骰子",     price: 40, pts: 2 },
+  { id: "star",      icon: "⭐", name: "星星",     price: 45, pts: 2 },
+  { id: "glollipop", icon: "🍭", name: "棒棒糖",   price: 45, pts: 3 },
+  { id: "teddy",     icon: "🧸", name: "泰迪熊",   price: 50, pts: 3 },
+  { id: "kite",      icon: "🪁", name: "風箏",     price: 50, pts: 3 },
+  { id: "bunny",     icon: "🐰", name: "兔子玩偶", price: 55, pts: 3 },
+  { id: "bear",      icon: "🐻", name: "熊玩偶",   price: 55, pts: 3 },
+  { id: "polaroid",  icon: "📷", name: "拍立得",   price: 55, pts: 3 },
+  { id: "puzzlegift",icon: "🧩", name: "拼圖",     price: 55, pts: 3 },
+  { id: "giftbox",   icon: "🎁", name: "禮物盒",   price: 60, pts: 3 },
+  { id: "hamster",   icon: "🐹", name: "倉鼠玩偶", price: 60, pts: 4 },
+  { id: "mirror",    icon: "🪞", name: "鏡子",     price: 60, pts: 3 },
+  { id: "socks",     icon: "🧦", name: "襪子",     price: 65, pts: 3 },
+  { id: "shirt",     icon: "👕", name: "衣服",     price: 70, pts: 4 },
+  { id: "bouquet",   icon: "💐", name: "花束",     price: 70, pts: 4 },
+  { id: "scarf",     icon: "🧣", name: "圍巾",     price: 70, pts: 4 },
+  { id: "gloves",    icon: "🧤", name: "手套",     price: 70, pts: 4 },
+  { id: "umbrella",  icon: "🌂", name: "雨傘",     price: 70, pts: 4 },
+  { id: "hat",       icon: "🧢", name: "帽子",     price: 75, pts: 4 },
+  { id: "coat",      icon: "🧥", name: "外套",     price: 80, pts: 4 },
+  { id: "headphone", icon: "🎧", name: "耳機",     price: 85, pts: 5 },
+  { id: "blanket",   icon: "🛏️", name: "棉被",     price: 85, pts: 4 },
+  { id: "bag2",      icon: "👜", name: "包包",     price: 85, pts: 5 },
+  { id: "ring",      icon: "💍", name: "戒指",     price: 90, pts: 5 },
+  { id: "shoes",     icon: "👟", name: "鞋子",     price: 90, pts: 5 },
+  { id: "sunglasses",icon: "🕶️", name: "墨鏡",     price: 90, pts: 5 },
+  { id: "watch",     icon: "⌚", name: "手錶",     price: 95, pts: 5 },
+  { id: "backpack",  icon: "🎒", name: "背包",     price: 95, pts: 5 },
+  { id: "crown",     icon: "👑", name: "皇冠",     price: 100, pts: 6 },
+  { id: "phone",     icon: "📱", name: "手機",     price: 110, pts: 6 },
+  { id: "diamond",   icon: "💎", name: "鑽石",     price: 120, pts: 7 },
+  { id: "console",   icon: "🎮", name: "遊戲機",   price: 130, pts: 7 },
+  { id: "piano",     icon: "🎹", name: "鋼琴",     price: 150, pts: 8 }
+];
+function giftById(gid) { return GIFTS.find(g => g.id === gid); }
+
 function affOf(id) {
-  if (!affection[id]) affection[id] = { points: 0, lastDaily: "", tasks: { date: "", done: [] }, inter: { date: "", done: [] }, rps: { date: "", left: 3 }, coins: 0 };
+  if (!affection[id]) affection[id] = { points: 0, lastDaily: "", tasks: { date: "", done: [] }, inter: { date: "", done: [] }, rps: { date: "", left: RPS_DAILY }, coins: 0 };
   if (!affection[id].inter) affection[id].inter = { date: "", done: [] };
-  if (!affection[id].rps) affection[id].rps = { date: "", left: 3 };
-  if (typeof affection[id].rps.left !== "number") affection[id].rps.left = 3; // 舊資料相容
+  if (!affection[id].rps) affection[id].rps = { date: "", left: RPS_DAILY };
+  if (typeof affection[id].rps.left !== "number") affection[id].rps.left = RPS_DAILY; // 舊資料相容
   if (typeof affection[id].coins !== "number") affection[id].coins = 0; // 金幣
   if (!affection[id].bag) affection[id].bag = {}; // 食物背包 {foodId: 數量}
+  if (!affection[id].giftBag) affection[id].giftBag = {}; // 禮物背包 {giftId: 數量}
   // 換日就清空今天的任務勾選 + 互動紀錄 + 猜拳場數
   const t = todayStr();
   if (affection[id].tasks.date !== t) affection[id].tasks = { date: t, done: [] };
   if (affection[id].inter.date !== t) affection[id].inter = { date: t, done: [] };
-  if (affection[id].rps.date !== t) affection[id].rps = { date: t, left: 3 };
+  if (affection[id].rps.date !== t) affection[id].rps = { date: t, left: RPS_DAILY };
   return affection[id];
 }
 function affLevel(points) { return Math.floor(points / AFF_LEVEL_STEP) + 1; }
@@ -4111,7 +4156,7 @@ let rpsGame = null;        // 目前這場的狀態
 function openRpsGame(id) {
   const a = affOf(id);
   if (a.rps.left <= 0) {
-    toast("今天 3 場玩完囉,明天再來 🌙");
+    toast("今天場數玩完囉,明天再來 🌙");
     return;
   }
   // 不在這裡扣場數!等整場玩完才扣(中途跳出不算)
@@ -4884,12 +4929,12 @@ function listenSettings() {
     fortuneToday = data.fortuneToday || null; // 今天的籤
     fortuneLog = data.fortuneLog || []; // 籤收藏冊
     affection = data.affection || {}; // 好感度
-    // 一次性:把今天的猜拳場數補回 3 場(用日期+版本標記,只補一次)
-    const refillTag = "rps-refill-v2-" + todayStr();
+    // 一次性:把今天的猜拳場數補滿(用日期+版本標記,只補一次)
+    const refillTag = "rps-refill-v3-" + todayStr();
     if (data.rpsRefillDone !== refillTag) {
       const t = todayStr();
       Object.keys(affection).forEach(k => {
-        if (affection[k].rps) affection[k].rps = { date: t, left: 3, loss: 0 };
+        if (affection[k].rps) affection[k].rps = { date: t, left: RPS_DAILY };
       });
       setDoc(doc(db, "users", uid, "settings", "prefs"),
         { affection, rpsRefillDone: refillTag }, { merge: true });
