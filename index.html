@@ -662,6 +662,35 @@
   .mine-cell.n3{color:#e0563f;} .mine-cell.n4{color:#7b3fd8;}
   .mine-cell.n5{color:#b8482f;} .mine-cell.n6{color:#2aa0a0;}
   .mine-cell.n7{color:#555;}    .mine-cell.n8{color:#999;}
+
+  /* ---------- 數獨 ---------- */
+  .sudoku-board{
+    display:grid;grid-template-columns:repeat(9,1fr);gap:1px;
+    max-width:400px;margin:0 auto 14px;background:#9fb8cc;
+    padding:2px;border-radius:8px;
+  }
+  body.dark .sudoku-board{background:#3a4a5a;}
+  .sudoku-cell{
+    aspect-ratio:1;border:none;background:#fff;font-size:1.1rem;font-weight:700;
+    color:var(--accent-2);cursor:pointer;font-family:inherit;padding:0;
+    display:flex;align-items:center;justify-content:center;
+  }
+  body.dark .sudoku-cell{background:#222c38;color:#b9aaff;}
+  .sudoku-cell.given{color:var(--ink);font-weight:900;cursor:default;}
+  body.dark .sudoku-cell.given{color:#ece6f5;}
+  .sudoku-cell.rb{border-right:2px solid #6f8aa3;}
+  .sudoku-cell.bb{border-bottom:2px solid #6f8aa3;}
+  .sudoku-cell.sel{background:#d7ecff;}
+  body.dark .sudoku-cell.sel{background:#33485f;}
+  .sudoku-cell.bad{background:#ffd6d6;color:#e0353f;}
+  .sudoku-pad{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;max-width:400px;margin:0 auto;}
+  .sudoku-key{
+    width:36px;height:44px;border:2px solid #ece2fb;border-radius:10px;
+    background:var(--card);font-size:1.2rem;font-weight:800;color:var(--ink);
+    cursor:pointer;font-family:inherit;
+  }
+  .sudoku-key:hover{border-color:var(--accent-2);}
+  .sudoku-key.erase{color:var(--accent);}
   .gacha-machine{text-align:center;margin-bottom:16px;}
   .gacha-top{font-size:3.5rem;margin-bottom:8px;}
   .gacha-btn{font-size:1.2rem;padding:14px 36px;}
@@ -1001,6 +1030,10 @@ window.FIREBASE_CONFIG = {
         <span class="game-pick-emoji">💣</span>
         <span><b>踩地雷</b><br><small>翻開格子,靠數字推理避開地雷</small></span>
       </button>
+      <button class="game-pick" data-game="sudoku">
+        <span class="game-pick-emoji">🔢</span>
+        <span><b>數獨</b><br><small>填 1~9,每排每宮不重複</small></span>
+      </button>
     </div>
 
     <!-- 猜猜看遊戲 -->
@@ -1148,6 +1181,15 @@ window.FIREBASE_CONFIG = {
         <button class="ghost-btn" id="mineBack">← 選遊戲</button>
       </div>
       <div id="mineArea"></div>
+    </div>
+
+    <!-- 數獨 -->
+    <div id="sudokuWrap" style="display:none">
+      <div class="game-head">
+        <div class="game-info"><span id="sudokuInfo">🔢 數獨</span></div>
+        <button class="ghost-btn" id="sudokuBack">← 選遊戲</button>
+      </div>
+      <div id="sudokuArea"></div>
     </div>
   </section>
 
@@ -2181,6 +2223,7 @@ function showGameMenu() {
   $("affectionWrap").style.display = "none";
   $("snakeWrap").style.display = "none";
   $("mineWrap").style.display = "none";
+  $("sudokuWrap").style.display = "none";
   if (memoryState && memoryState.timer) clearInterval(memoryState.timer);
   if (guessGame && guessGame.timer) clearInterval(guessGame.timer);
   if (numberState && numberState.timer) clearTimeout(numberState.timer);
@@ -2203,7 +2246,8 @@ document.querySelectorAll("[data-game]").forEach(b => b.onclick = () => {
   else if (g === "fortune") { $("fortuneWrap").style.display = ""; setupFortune(); }
   else if (g === "affection") { $("affectionWrap").style.display = ""; setupAffection(); }
   else if (g === "snake") { $("snakeWrap").style.display = ""; setupSnake(); }
-  else { $("mineWrap").style.display = ""; setupMine(); }
+  else if (g === "mine") { $("mineWrap").style.display = ""; setupMine(); }
+  else { $("sudokuWrap").style.display = ""; setupSudoku(); }
 });
 $("guessBack").onclick = showGameMenu;
 $("memoryBack").onclick = showGameMenu;
@@ -2218,6 +2262,7 @@ $("fortuneBack").onclick = showGameMenu;
 $("affectionBack").onclick = showGameMenu;
 $("snakeBack").onclick = showGameMenu;
 $("mineBack").onclick = showGameMenu;
+$("sudokuBack").onclick = showGameMenu;
 $("affectionBack").onclick = showGameMenu;
 
 /* ================== 猜照片遊戲 🔍❤️ ================== */
@@ -4244,9 +4289,9 @@ function setupMine() {
   $("mineFlags").textContent = "🚩 0";
   area.innerHTML = `
     <div class="mem-pick-title">選難度 💣</div>
-    <div class="mine-levels">
+    <div class="mem-levels">
       ${Object.keys(MINE_LEVELS).map(k =>
-        `<button class="diff-btn" data-mlv="${k}">${MINE_LEVELS[k].label}<br><small>${MINE_LEVELS[k].size}×${MINE_LEVELS[k].size}・${MINE_LEVELS[k].bombs} 顆雷</small></button>`
+        `<button class="mem-level-btn" data-mlv="${k}">${MINE_LEVELS[k].label}<br><small>${MINE_LEVELS[k].size}×${MINE_LEVELS[k].size}・${MINE_LEVELS[k].bombs} 顆雷</small></button>`
       ).join("")}
     </div>
     <div class="g2048-hint">電腦:左鍵翻開、右鍵插旗　手機:點一下翻開、長按插旗</div>`;
@@ -4405,6 +4450,154 @@ function currentMineLevel() {
   // 依目前盤面大小反推難度
   for (const k in MINE_LEVELS) if (MINE_LEVELS[k].size === mine.n) return k;
   return "easy";
+}
+
+/* ================== 數獨 🔢 ================== */
+let sudoku = null;
+const SUDOKU_LEVELS = {
+  easy:   { holes: 35, label: "🟢 簡單" },
+  medium: { holes: 45, label: "🟡 中等" },
+  hard:   { holes: 54, label: "🔴 困難" }
+};
+
+function setupSudoku() {
+  const area = $("sudokuArea");
+  $("sudokuInfo").textContent = "🔢 數獨";
+  area.innerHTML = `
+    <div class="mem-pick-title">選難度 🔢</div>
+    <div class="mem-levels">
+      ${Object.keys(SUDOKU_LEVELS).map(k =>
+        `<button class="mem-level-btn" data-slv="${k}">${SUDOKU_LEVELS[k].label}<br><small>${k === "easy" ? "給比較多數字" : k === "medium" ? "中等空格" : "很多空格,動腦"}</small></button>`
+      ).join("")}
+    </div>`;
+  area.querySelectorAll("[data-slv]").forEach(b => b.onclick = () => startSudoku(b.dataset.slv));
+}
+
+// 產生一個完整的數獨解答(回溯法)
+function genFullSudoku() {
+  const g = Array.from({ length: 9 }, () => Array(9).fill(0));
+  function canPut(r, c, v) {
+    for (let i = 0; i < 9; i++) {
+      if (g[r][i] === v || g[i][c] === v) return false;
+    }
+    const br = Math.floor(r / 3) * 3, bc = Math.floor(c / 3) * 3;
+    for (let dr = 0; dr < 3; dr++)
+      for (let dc = 0; dc < 3; dc++)
+        if (g[br + dr][bc + dc] === v) return false;
+    return true;
+  }
+  function fill(pos) {
+    if (pos === 81) return true;
+    const r = Math.floor(pos / 9), c = pos % 9;
+    const nums = shuffle([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    for (const v of nums) {
+      if (canPut(r, c, v)) {
+        g[r][c] = v;
+        if (fill(pos + 1)) return true;
+        g[r][c] = 0;
+      }
+    }
+    return false;
+  }
+  fill(0);
+  return g;
+}
+
+function startSudoku(level) {
+  const cfg = SUDOKU_LEVELS[level];
+  const solution = genFullSudoku();
+  // 挖洞做題目
+  const puzzle = solution.map(row => row.slice());
+  let holes = cfg.holes;
+  const order = shuffle([...Array(81).keys()]);
+  for (const idx of order) {
+    if (holes <= 0) break;
+    const r = Math.floor(idx / 9), c = idx % 9;
+    if (puzzle[r][c] !== 0) { puzzle[r][c] = 0; holes--; }
+  }
+  sudoku = {
+    solution, puzzle,
+    given: puzzle.map(row => row.map(v => v !== 0)), // 哪些是題目給的(不能改)
+    cur: puzzle.map(row => row.slice()),             // 玩家目前填的
+    selected: null, level
+  };
+  drawSudoku();
+}
+
+function drawSudoku() {
+  const area = $("sudokuArea");
+  let html = `<div class="sudoku-board" id="sudokuBoard">`;
+  for (let r = 0; r < 9; r++)
+    for (let c = 0; c < 9; c++) {
+      const v = sudoku.cur[r][c];
+      const given = sudoku.given[r][c];
+      // 邊框:每 3 格加粗
+      let cls = "sudoku-cell";
+      if (given) cls += " given";
+      if (c % 3 === 2 && c !== 8) cls += " rb";
+      if (r % 3 === 2 && r !== 8) cls += " bb";
+      if (sudoku.selected && sudoku.selected[0] === r && sudoku.selected[1] === c) cls += " sel";
+      // 衝突檢查(填的數字違反規則 → 紅色)
+      if (v !== 0 && !given && hasSudokuConflict(r, c, v)) cls += " bad";
+      html += `<button class="${cls}" data-sr="${r}" data-sc="${c}">${v || ""}</button>`;
+    }
+  html += `</div>`;
+  // 數字鍵盤
+  html += `<div class="sudoku-pad">`;
+  for (let n = 1; n <= 9; n++) html += `<button class="sudoku-key" data-snum="${n}">${n}</button>`;
+  html += `<button class="sudoku-key erase" data-snum="0">⌫</button>`;
+  html += `</div><div id="sudokuMsg"></div>`;
+  area.innerHTML = html;
+
+  area.querySelectorAll("[data-sr]").forEach(b => b.onclick = () => {
+    const r = +b.dataset.sr, c = +b.dataset.sc;
+    if (sudoku.given[r][c]) return; // 題目給的不能選
+    sudoku.selected = [r, c];
+    drawSudoku();
+  });
+  area.querySelectorAll("[data-snum]").forEach(b => b.onclick = () => {
+    if (!sudoku.selected) { toast("先點一個空格再選數字喔"); return; }
+    const [r, c] = sudoku.selected;
+    const num = +b.dataset.snum;
+    sudoku.cur[r][c] = num;
+    sfx.tap();
+    drawSudoku();
+    checkSudokuWin();
+  });
+}
+
+// 檢查 (r,c) 填 v 有沒有跟同排/列/宮格重複
+function hasSudokuConflict(r, c, v) {
+  for (let i = 0; i < 9; i++) {
+    if (i !== c && sudoku.cur[r][i] === v) return true;
+    if (i !== r && sudoku.cur[i][c] === v) return true;
+  }
+  const br = Math.floor(r / 3) * 3, bc = Math.floor(c / 3) * 3;
+  for (let dr = 0; dr < 3; dr++)
+    for (let dc = 0; dc < 3; dc++) {
+      const nr = br + dr, nc = bc + dc;
+      if ((nr !== r || nc !== c) && sudoku.cur[nr][nc] === v) return true;
+    }
+  return false;
+}
+
+function checkSudokuWin() {
+  // 全部填滿且沒有衝突
+  for (let r = 0; r < 9; r++)
+    for (let c = 0; c < 9; c++) {
+      const v = sudoku.cur[r][c];
+      if (v === 0) return; // 還有空格
+      if (!sudoku.given[r][c] && hasSudokuConflict(r, c, v)) return; // 有錯
+    }
+  // 過關!
+  sfx.win();
+  $("sudokuMsg").innerHTML = `<div class="game-over">
+    🎉 完成數獨,太厲害了!<br>
+    <button class="primary-btn" id="sudokuAgain" style="margin-top:12px">再玩一題 🔄</button>
+    <button class="ghost-btn" id="sudokuNewLv" style="margin-top:8px">換難度</button>
+  </div>`;
+  $("sudokuAgain").onclick = () => startSudoku(sudoku.level);
+  $("sudokuNewLv").onclick = setupSudoku;
 }
 
 /* ================== 里程碑慶祝 🎉 ================== */
