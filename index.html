@@ -625,6 +625,29 @@
   .aff-tool-body input{flex:1;padding:10px;border:2px solid #ece2fb;border-radius:10px;font-size:1rem;font-family:inherit;}
   .aff-tool-body .primary-btn{padding:10px 18px;}
   .aff-inters{max-width:340px;margin:0 auto;display:flex;flex-direction:column;gap:8px;}
+  .aff-inter-box{max-width:340px;margin:20px auto 0;background:var(--card);border-radius:14px;box-shadow:var(--shadow);padding:12px 16px;}
+  .aff-inter-box summary{cursor:pointer;font-weight:800;color:var(--accent-2);font-size:1rem;}
+
+  /* ---------- 一起畫畫 ---------- */
+  .draw-head{text-align:center;font-weight:900;font-size:1.1rem;margin-bottom:12px;position:relative;}
+  .draw-idol{width:46px;height:46px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-left:8px;}
+  .draw-canvas{
+    display:block;margin:0 auto;border-radius:14px;background:#fff;
+    box-shadow:var(--shadow);touch-action:none;max-width:100%;cursor:crosshair;
+  }
+  .draw-tools{max-width:340px;margin:12px auto 0;}
+  .draw-colors{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-bottom:8px;}
+  .draw-color{width:30px;height:30px;border-radius:50%;border:2px solid #ddd;cursor:pointer;}
+  .draw-color.on{border-color:var(--ink);transform:scale(1.15);box-shadow:0 0 0 2px var(--accent-2);}
+  .draw-sizes{display:flex;gap:8px;justify-content:center;}
+  .draw-size{
+    padding:6px 16px;border-radius:999px;border:2px solid #ece2fb;background:var(--card);
+    font-weight:700;color:var(--ink);cursor:pointer;font-family:inherit;
+  }
+  .draw-size.on{background:var(--accent-2);color:#fff;border-color:var(--accent-2);}
+  .draw-btns{display:flex;gap:8px;justify-content:center;max-width:340px;margin:10px auto 0;}
+  .draw-btns .ghost-btn{flex:1;}
+  #drawEraser.on{background:var(--accent-2);color:#fff;}
   .aff-inter{
     display:flex;justify-content:space-between;align-items:center;
     background:var(--card);border:2px solid #ffd9ec;border-radius:14px;
@@ -3936,6 +3959,7 @@ const AFF_TASKS = [
 // 升級解鎖的互動(每個每天一次)
 const AFF_INTERACTIONS = [
   { id: "pat",   icon: "🤚", label: "摸摸他",   lv: 2, pts: 2, reply: "他笑了 😊" },
+  { id: "draw",  icon: "🎨", label: "一起畫畫", lv: 3, pts: 3, reply: "你們一起畫畫,好開心 🎨" },
   { id: "feed",  icon: "🍚", label: "餵他吃飯", lv: 4, pts: 3, reply: "他吃得好開心!🍴" },
   { id: "gift",  icon: "🎁", label: "送禮物",   lv: 6, pts: 3, reply: "他超喜歡這個禮物!🥰" },
   { id: "music", icon: "🎵", label: "一起聽歌", lv: 8, pts: 3, reply: "你們一起聽歌,好幸福 🎶" }
@@ -4141,8 +4165,10 @@ function openAffection(id) {
     <div class="bd-section-title" style="margin-top:20px">今日任務 💬</div>
     <div class="aff-tasks" id="affTasks"></div>
 
-    <div class="bd-section-title" style="margin-top:20px">互動 🔓</div>
-    <div class="aff-inters" id="affInters"></div>
+    <details class="aff-inter-box">
+      <summary>💕 互動（點開看全部）</summary>
+      <div class="aff-inters" id="affInters" style="margin-top:12px"></div>
+    </details>
 
     <div class="bd-section-title" style="margin-top:20px">跟他猜拳 🪙</div>
     <div style="text-align:center;color:var(--ink-soft);font-weight:700;margin-bottom:10px">💰 ${esc(idol.name)} 的錢包：<b style="color:var(--accent-2)">${a.coins}</b> 元</div>
@@ -4211,6 +4237,7 @@ function openAffection(id) {
     const gotToday = a.inter.done.includes(it.id); // 今天是否已經加過分
     const isFeed = it.id === "feed"; // 餵飯特別:從背包選食物
     const isGift = it.id === "gift"; // 送禮物特別:從禮物背包選
+    const isDraw = it.id === "draw"; // 畫畫特別:開畫布
     const row = document.createElement("button");
     row.className = "aff-inter" + (!unlocked ? " locked" : "");
     if (!unlocked) {
@@ -4223,12 +4250,15 @@ function openAffection(id) {
       // 送禮物顯示禮物背包總數
       const giftCount = Object.values(a.giftBag).reduce((s, n) => s + n, 0);
       row.innerHTML = `<span>${it.icon} ${esc(it.label)}</span><span class="aff-task-pts">🎁 ${giftCount} 個禮物</span>`;
+    } else if (isDraw) {
+      row.innerHTML = `<span>${it.icon} ${esc(it.label)}</span><span class="aff-task-pts">${gotToday ? "今天加過分了 💗" : "開畫布 🎨"}</span>`;
     } else {
       row.innerHTML = `<span>${it.icon} ${esc(it.label)}</span><span class="aff-task-pts">${gotToday ? "今天加過分了 💗" : "+" + it.pts}</span>`;
     }
     if (unlocked) row.onclick = () => {
       if (isFeed) { openFeed(id); return; } // 餵飯 → 開背包
       if (isGift) { openGift(id); return; } // 送禮物 → 開禮物背包
+      if (isDraw) { openDraw(id); return; } // 畫畫 → 開畫布
       if (!a.inter.done.includes(it.id)) {
         // 今天第一次 → 加分
         a.inter.done.push(it.id);
@@ -4546,6 +4576,126 @@ function showGiftReaction(id, g) {
     </div>`;
   $("giftReactBack").onclick = () => openGift(id);
   $("giftReactHome").onclick = () => openAffection(id);
+}
+
+/* ================== 一起畫畫 🎨 ================== */
+const DRAW_COLORS = ["#333333", "#ff5e8a", "#ff9f43", "#ffd633", "#4caf50", "#3fa9f5", "#a66bff", "#8b5e3c", "#ffffff"];
+const DRAW_SIZES = { 細: 3, 中: 8, 粗: 16 };
+let drawState = null;
+
+function openDraw(id) {
+  const idol = idols.find(i => i.id === id);
+  const photo = (idol.gallery && idol.gallery[0]) || idol.photoData || idol.photoUrl;
+  const area = $("affectionArea");
+  area.innerHTML = `
+    <div class="draw-head">
+      🎨 跟 ${esc(idol.emoji || "")} ${esc(idol.name)} 一起畫畫
+      ${photo ? `<img class="draw-idol" src="${esc(photo)}" alt="">` : ""}
+    </div>
+    <canvas id="drawCanvas" class="draw-canvas" width="320" height="320"></canvas>
+    <div class="draw-tools">
+      <div class="draw-colors" id="drawColors"></div>
+      <div class="draw-sizes" id="drawSizes"></div>
+    </div>
+    <div class="draw-btns">
+      <button class="ghost-btn" id="drawEraser">🧽 橡皮擦</button>
+      <button class="ghost-btn" id="drawClear">🗑️ 清除</button>
+    </div>
+    <button class="primary-btn" id="drawDone" style="width:100%;margin-top:10px">✅ 完成(加好感度)</button>
+    <button class="ghost-btn" id="drawBack" style="width:100%;margin-top:8px">← 回好感度頁</button>`;
+
+  const canvas = $("drawCanvas");
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  drawState = { ctx, canvas, color: DRAW_COLORS[0], size: 8, drawing: false, erasing: false };
+
+  // 顏色選擇
+  const colorsEl = $("drawColors");
+  DRAW_COLORS.forEach(col => {
+    const b = document.createElement("button");
+    b.className = "draw-color" + (col === drawState.color ? " on" : "");
+    b.style.background = col;
+    b.onclick = () => {
+      drawState.color = col; drawState.erasing = false;
+      colorsEl.querySelectorAll(".draw-color").forEach(x => x.classList.remove("on"));
+      b.classList.add("on");
+      $("drawEraser").classList.remove("on");
+    };
+    colorsEl.appendChild(b);
+  });
+  // 筆粗細
+  const sizesEl = $("drawSizes");
+  Object.entries(DRAW_SIZES).forEach(([label, sz]) => {
+    const b = document.createElement("button");
+    b.className = "draw-size" + (sz === drawState.size ? " on" : "");
+    b.textContent = label;
+    b.onclick = () => {
+      drawState.size = sz;
+      sizesEl.querySelectorAll(".draw-size").forEach(x => x.classList.remove("on"));
+      b.classList.add("on");
+    };
+    sizesEl.appendChild(b);
+  });
+
+  $("drawEraser").onclick = () => {
+    drawState.erasing = true;
+    $("drawEraser").classList.add("on");
+    colorsEl.querySelectorAll(".draw-color").forEach(x => x.classList.remove("on"));
+  };
+  $("drawClear").onclick = () => {
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  };
+  $("drawDone").onclick = () => finishDrawing(id);
+  $("drawBack").onclick = () => openAffection(id);
+
+  // 畫圖事件(滑鼠 + 觸控)
+  function pos(e) {
+    const r = canvas.getBoundingClientRect();
+    const cx = (e.touches ? e.touches[0].clientX : e.clientX) - r.left;
+    const cy = (e.touches ? e.touches[0].clientY : e.clientY) - r.top;
+    return { x: cx * (canvas.width / r.width), y: cy * (canvas.height / r.height) };
+  }
+  function start(e) {
+    e.preventDefault();
+    drawState.drawing = true;
+    const p = pos(e);
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+  }
+  function move(e) {
+    if (!drawState.drawing) return;
+    e.preventDefault();
+    const p = pos(e);
+    ctx.strokeStyle = drawState.erasing ? "#fff" : drawState.color;
+    ctx.lineWidth = drawState.erasing ? drawState.size * 2 : drawState.size;
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+  }
+  function end() { drawState.drawing = false; }
+  canvas.onmousedown = start; canvas.onmousemove = move;
+  canvas.onmouseup = end; canvas.onmouseleave = end;
+  canvas.ontouchstart = start; canvas.ontouchmove = move; canvas.ontouchend = end;
+}
+
+function finishDrawing(id) {
+  const a = affOf(id);
+  const idol = idols.find(i => i.id === id);
+  const it = AFF_INTERACTIONS.find(x => x.id === "draw");
+  // 一天加一次分
+  let added = 0;
+  if (!a.inter.done.includes("draw")) {
+    a.inter.done.push("draw");
+    a.points += it.pts;
+    added = it.pts;
+    saveAffection();
+  }
+  sfx.win();
+  toast(added > 0 ? `畫得真好!${esc(idol.name)} 好感度 +${added} 🎨` : `畫得真好!🎨`);
+  openAffection(id);
 }
 
 /* ================== 貪吃蛇 🐍 ================== */
