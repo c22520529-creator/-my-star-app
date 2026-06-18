@@ -594,6 +594,11 @@
   .aff-task.done{opacity:.5;cursor:default;}
   .aff-task-pts{color:var(--accent-2);font-weight:800;}
   .aff-pick{display:flex;flex-direction:column;}
+  .aff-tool{max-width:340px;margin:16px auto 0;background:var(--card);border-radius:12px;padding:10px 14px;box-shadow:var(--shadow);}
+  .aff-tool summary{cursor:pointer;font-weight:700;color:var(--ink-soft);font-size:.9rem;}
+  .aff-tool-body{display:flex;gap:8px;margin-top:10px;}
+  .aff-tool-body input{flex:1;padding:10px;border:2px solid #ece2fb;border-radius:10px;font-size:1rem;font-family:inherit;}
+  .aff-tool-body .primary-btn{padding:10px 18px;}
   .aff-inters{max-width:340px;margin:0 auto;display:flex;flex-direction:column;gap:8px;}
   .aff-inter{
     display:flex;justify-content:space-between;align-items:center;
@@ -635,6 +640,9 @@
     cursor:pointer;font-family:inherit;font-size:.95rem;
   }
   .shop-tab.on{background:var(--accent-2);color:#fff;border-color:var(--accent-2);}
+  .aff-tool{max-width:340px;margin:14px auto 0;background:var(--card);border-radius:14px;box-shadow:var(--shadow);padding:6px 14px;}
+  .aff-tool summary{cursor:pointer;font-weight:700;color:var(--ink-soft);padding:8px 0;font-size:.9rem;}
+  .aff-tool-body{padding:8px 0 12px;text-align:center;}
   .shop-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:420px;margin:0 auto;}
   .shop-item{
     background:var(--card);border:2px solid #ece2fb;border-radius:14px;
@@ -4105,6 +4113,26 @@ function openAffection(id) {
     <button class="primary-btn" id="affRpsBtn" style="width:100%;max-width:340px;display:block;margin:0 auto;font-size:1.05rem;padding:14px">🪙 開始猜拳遊戲（贏錢）</button>
     <button class="ghost-btn" id="affShopBtn" style="width:100%;max-width:340px;display:block;margin:10px auto 0;font-size:1.05rem;padding:14px">🛒 去超市買食物</button>
 
+    <details class="aff-tool">
+      <summary>🔧 手動調整好感度</summary>
+      <div class="aff-tool-body">
+        <div class="setting-desc" style="margin-bottom:8px">直接設定 ${esc(idol.name)} 的好感度數字（每 20 分升一級）</div>
+        <div style="display:flex;gap:8px;justify-content:center;align-items:center">
+          <input type="number" id="affSetInput" value="${a.points}" min="0" style="width:90px;padding:8px;border-radius:10px;border:2px solid #ece2fb;text-align:center;font-size:1rem;font-family:inherit">
+          <button class="primary-btn" id="affSetBtn" style="padding:8px 18px">設定</button>
+        </div>
+      </div>
+    </details>
+
+    <details class="aff-tool">
+      <summary>🔧 手動設定好感度</summary>
+      <div class="aff-tool-body">
+        <input type="number" id="affSetInput" placeholder="輸入好感度數字" value="${a.points}" min="0">
+        <button class="primary-btn" id="affSetBtn">設定</button>
+      </div>
+      <div class="setting-desc" style="margin-top:6px">例如:Lv.5 = 80分、Lv.3 = 40分(每20分一級)</div>
+    </details>
+
     <button class="ghost-btn" id="affBackPick" style="margin-top:16px;width:100%">← 換一位養</button>`;
 
   $("affDaily").onclick = () => {
@@ -4115,6 +4143,13 @@ function openAffection(id) {
     toast("應援 +5 好感度 💕");
   };
   $("affBackPick").onclick = setupAffection;
+  $("affSetBtn").onclick = () => {
+    const v = Math.max(0, parseInt($("affSetInput").value, 10) || 0);
+    a.points = v;
+    saveAffection();
+    openAffection(id);
+    toast(`好感度設成 ${v}（Lv.${affLevel(v)}）✅`);
+  };
 
   // 今日任務
   const tasksEl = $("affTasks");
@@ -4176,6 +4211,13 @@ function openAffection(id) {
   // 猜拳入口按鈕 → 進獨立遊戲頁
   $("affRpsBtn").onclick = () => openRpsGame(id);
   $("affShopBtn").onclick = () => openShop(id);
+  $("affSetBtn").onclick = () => {
+    const v = Math.max(0, parseInt($("affSetInput").value, 10) || 0);
+    a.points = v;
+    saveAffection();
+    openAffection(id);
+    toast(`好感度設定成 ${v}（Lv.${affLevel(v)}）✅`);
+  };
 }
 
 const RPS_HANDS = [
@@ -5070,21 +5112,6 @@ function listenSettings() {
       });
       setDoc(doc(db, "users", uid, "settings", "prefs"),
         { affection, rpsRefillDone: refillTag }, { merge: true });
-    }
-    // 一次性:把余悸的好感度調回 Lv.5(80分),修正餵食bug造成的暴衝
-    const fixTag = "yuji-lv5-fix";
-    if (data.affFixDone !== fixTag && idols && idols.length > 0) {
-      let fixed = false;
-      idols.forEach(i => {
-        if (i.name === "余悸" && affection[i.id]) {
-          affection[i.id].points = 80; // Lv.5 起點
-          fixed = true;
-        }
-      });
-      if (fixed) {
-        setDoc(doc(db, "users", uid, "settings", "prefs"),
-          { affection, affFixDone: fixTag }, { merge: true });
-      }
     }
     rerenderActiveList(); // 標準改了,文章徽章跟著更新
   });
