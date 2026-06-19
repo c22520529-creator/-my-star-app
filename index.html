@@ -4161,7 +4161,7 @@ function drawFortuneBook() {
 
 /* ================== 好感度養成 💌 ================== */
 // 每一級需要的好感度(累積),等級小語
-const AFF_LEVEL_STEP = 20; // 每 20 點升一級
+const AFF_LEVEL_STEP = 50; // 每 50 點升一級
 const RPS_DAILY = 5;       // 每天可玩幾場猜拳
 const AFF_MSGS = [
   "你們的故事才剛開始 🌱",          // Lv.1
@@ -4534,7 +4534,7 @@ function openAffection(id) {
     <details class="aff-tool">
       <summary>🔧 手動調整好感度</summary>
       <div class="aff-tool-body">
-        <div class="setting-desc" style="margin-bottom:8px">直接設定 ${esc(idol.name)} 的好感度數字（每 20 分升一級，例如 Lv.5 = 80分）</div>
+        <div class="setting-desc" style="margin-bottom:8px">直接設定 ${esc(idol.name)} 的好感度數字（每 50 分升一級，例如 Lv.5 = 250分）</div>
         <div style="display:flex;gap:8px;justify-content:center;align-items:center">
           <input type="number" id="affSetInput" value="${a.points}" min="0" style="width:90px;padding:8px;border-radius:10px;border:2px solid #ece2fb;text-align:center;font-size:1rem;font-family:inherit">
           <button class="primary-btn" id="affSetBtn" style="padding:8px 18px">設定</button>
