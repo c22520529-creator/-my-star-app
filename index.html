@@ -853,6 +853,24 @@
     transform:translate(-50%,-50%) scale(1);
     transition:left .4s cubic-bezier(.4,0,.6,1),top .4s cubic-bezier(.4,0,.6,1),transform .4s ease,opacity .4s ease;
   }
+
+  /* ---------- 銀行 ---------- */
+  .bank-card{
+    max-width:320px;margin:0 auto;border-radius:16px;padding:18px 20px;
+    background:linear-gradient(160deg,#eafaf0,#e6f0ff);box-shadow:var(--shadow);
+  }
+  body.dark .bank-card{background:linear-gradient(160deg,#22322a,#222c38);}
+  .bank-row{display:flex;justify-content:space-between;align-items:baseline;font-weight:700;font-size:1.05rem;margin-bottom:8px;}
+  .bank-row b{font-size:1.4rem;color:var(--accent-2);}
+  .bank-note{font-size:.8rem;color:var(--ink-soft);margin-top:6px;}
+  .bank-gained{margin-top:10px;background:#fff3d6;color:#a6792e;font-weight:800;border-radius:10px;padding:8px;text-align:center;}
+  body.dark .bank-gained{background:#3a3320;color:#ffd98a;}
+  .bank-input-row{max-width:320px;margin:14px auto 0;}
+  .bank-input-row input{
+    width:100%;padding:12px;border:2px solid #ece2fb;border-radius:12px;
+    font-size:1.1rem;font-family:inherit;text-align:center;box-sizing:border-box;
+  }
+  .bank-input-row + .draw-btns{max-width:320px;margin:10px auto 0;}
   .aff-inter{
     display:flex;justify-content:space-between;align-items:center;
     background:var(--card);border:2px solid #ffd9ec;border-radius:14px;
@@ -4455,6 +4473,7 @@ function affOf(id) {
   if (!affection[id].giftBag) affection[id].giftBag = {}; // 禮物背包 {giftId: 數量}
   if (!affection[id].gaveGifts) affection[id].gaveGifts = []; // 送過的禮物id(他會收藏)
   if (!affection[id].checkin) affection[id].checkin = { last: "", streak: 0 }; // 每日簽到 {上次日期, 連續天數}
+  if (!affection[id].bank) affection[id].bank = { saved: 0, lastInterest: "" }; // 銀行 {存款, 上次結算利息的日期}
   // 換日就清空今天的任務勾選 + 互動紀錄 + 猜拳場數
   const t = todayStr();
   if (affection[id].tasks.date !== t) affection[id].tasks = { date: t, done: [] };
@@ -4489,6 +4508,85 @@ function dailyCheckin(id) {
   startConfetti();
   toast(`📅 簽到成功!連續 ${a.checkin.streak} 天　${esc(idol.name)} +${reward} 元 💰`);
   openAffection(id);
+}
+
+/* ================== 🏦 銀行(存錢生利息) ================== */
+// 計算今天日期是「第幾天」(用來算過了幾天),以 2020-1-1 為基準
+function dayNumber(str) {
+  const [y, m, d] = str.split("-").map(Number);
+  return Math.floor(Date.UTC(y, m - 1, d) / 86400000);
+}
+// 結算利息:每過一天,存款 +5%(每天上限+100元),回傳這次總共領到的利息
+function settleInterest(a) {
+  if (a.bank.saved <= 0) { a.bank.lastInterest = todayStr(); return 0; }
+  if (!a.bank.lastInterest) { a.bank.lastInterest = todayStr(); return 0; }
+  const days = dayNumber(todayStr()) - dayNumber(a.bank.lastInterest);
+  if (days <= 0) return 0;
+  let gained = 0;
+  for (let i = 0; i < days && i < 365; i++) { // 最多算365天,避免太久沒開長爆
+    const interest = Math.min(Math.floor(a.bank.saved * 0.05), 100); // 5%,上限100
+    a.bank.saved += interest;
+    gained += interest;
+  }
+  a.bank.lastInterest = todayStr();
+  return gained;
+}
+
+function openBank(id) {
+  const a = affOf(id);
+  const idol = idols.find(i => i.id === id);
+  const gained = settleInterest(a); // 一進來先結算利息
+  if (gained > 0) saveAffection();
+  const area = $("affectionArea");
+  area.innerHTML = `
+    <div class="selfie-head">🏦 ${esc(idol.name)} 的銀行</div>
+    <div class="bank-card">
+      <div class="bank-row"><span>💰 錢包</span><b id="bankWallet">${a.coins}</b> 元</div>
+      <div class="bank-row"><span>🏦 存款</span><b id="bankSaved">${a.bank.saved}</b> 元</div>
+      <div class="bank-note">每天利息 5%（每天最多 +100 元）</div>
+      ${gained > 0 ? `<div class="bank-gained">🎉 這次領到利息 +${gained} 元!</div>` : ""}
+    </div>
+    <div class="bank-input-row">
+      <input type="number" id="bankAmount" placeholder="輸入金額" min="1">
+    </div>
+    <div class="draw-btns">
+      <button class="primary-btn" id="bankSave">⬇️ 存進銀行</button>
+      <button class="ghost-btn" id="bankTake">⬆️ 領出來</button>
+    </div>
+    <div class="draw-btns" style="margin-top:8px">
+      <button class="ghost-btn" id="bankAll">全部存進去</button>
+      <button class="ghost-btn" id="bankBack">← 回好感度</button>
+    </div>`;
+
+  $("bankSave").onclick = () => {
+    const v = Math.max(0, parseInt($("bankAmount").value, 10) || 0);
+    if (v <= 0) { toast("輸入要存的金額 💰"); return; }
+    if (v > a.coins) { toast("錢包沒這麼多錢喔 😅"); return; }
+    a.coins -= v; a.bank.saved += v;
+    if (!a.bank.lastInterest) a.bank.lastInterest = todayStr();
+    saveAffection(); sfx.correct();
+    toast(`存了 ${v} 元進銀行 🏦`);
+    openBank(id);
+  };
+  $("bankTake").onclick = () => {
+    const v = Math.max(0, parseInt($("bankAmount").value, 10) || 0);
+    if (v <= 0) { toast("輸入要領的金額 💰"); return; }
+    if (v > a.bank.saved) { toast("存款沒這麼多喔 😅"); return; }
+    a.bank.saved -= v; a.coins += v;
+    saveAffection(); sfx.correct();
+    toast(`領了 ${v} 元出來 💰`);
+    openBank(id);
+  };
+  $("bankAll").onclick = () => {
+    if (a.coins <= 0) { toast("錢包是空的 😅"); return; }
+    a.bank.saved += a.coins;
+    toast(`把 ${a.coins} 元全部存進銀行 🏦`);
+    a.coins = 0;
+    if (!a.bank.lastInterest) a.bank.lastInterest = todayStr();
+    saveAffection(); sfx.correct();
+    openBank(id);
+  };
+  $("bankBack").onclick = () => openAffection(id);
 }
 
 function setupAffection() {
@@ -4569,6 +4667,7 @@ function openAffection(id) {
     <button class="primary-btn" id="affCheckinBtn" style="width:100%;max-width:340px;display:block;margin:0 auto 10px;font-size:1.05rem;padding:14px">${checkinDoneToday ? `✅ 今天簽到過了（連續 ${a.checkin.streak} 天）` : `📅 每日簽到領錢（連續 ${a.checkin.streak} 天）`}</button>
     <button class="primary-btn" id="affRpsBtn" style="width:100%;max-width:340px;display:block;margin:0 auto;font-size:1.05rem;padding:14px">🪙 開始猜拳遊戲（贏錢）</button>
     <button class="ghost-btn" id="affShopBtn" style="width:100%;max-width:340px;display:block;margin:10px auto 0;font-size:1.05rem;padding:14px">🛒 去超市買食物</button>
+    <button class="ghost-btn" id="affBankBtn" style="width:100%;max-width:340px;display:block;margin:10px auto 0;font-size:1.05rem;padding:14px">🏦 銀行（存錢生利息）</button>
 
     <details class="aff-tool">
       <summary>🔧 手動調整好感度</summary>
@@ -4696,6 +4795,7 @@ function openAffection(id) {
   // 猜拳入口按鈕 → 進獨立遊戲頁
   $("affRpsBtn").onclick = () => openRpsGame(id);
   $("affShopBtn").onclick = () => openShop(id);
+  $("affBankBtn").onclick = () => openBank(id);
   $("affCheckinBtn").onclick = () => dailyCheckin(id);
 }
 
