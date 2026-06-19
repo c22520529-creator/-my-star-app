@@ -871,6 +871,43 @@
     font-size:1.1rem;font-family:inherit;text-align:center;box-sizing:border-box;
   }
   .bank-input-row + .draw-btns{max-width:320px;margin:10px auto 0;}
+
+  /* ---------- 拆禮物盒動畫 ---------- */
+  .giftbox-wrap{
+    position:relative;width:160px;height:170px;margin:20px auto;cursor:pointer;
+    display:flex;align-items:flex-end;justify-content:center;
+  }
+  .giftbox{position:relative;width:130px;height:120px;}
+  .giftbox-lid{
+    position:absolute;top:0;left:50%;transform:translateX(-50%);
+    width:144px;height:34px;background:linear-gradient(160deg,#ff9ec4,#ff6fa5);
+    border-radius:8px;z-index:2;transition:transform .5s cubic-bezier(.5,-0.4,.5,1.4),opacity .5s;
+    box-shadow:0 3px 8px rgba(0,0,0,.15);
+  }
+  .giftbox-bow{position:absolute;top:-22px;left:50%;transform:translateX(-50%);font-size:2rem;}
+  .giftbox-body{
+    position:absolute;bottom:0;left:50%;transform:translateX(-50%);
+    width:130px;height:96px;background:linear-gradient(160deg,#ffd0e4,#ffb3d1);
+    border-radius:8px;display:flex;align-items:center;justify-content:center;
+    box-shadow:0 4px 12px rgba(0,0,0,.12);
+  }
+  .giftbox-body::before{
+    content:"";position:absolute;left:50%;top:0;bottom:0;width:20px;
+    transform:translateX(-50%);background:rgba(255,255,255,.5);
+  }
+  .giftbox-face{font-size:2.6rem;position:relative;z-index:1;}
+  /* 拆開:蓋子飛走 + 盒子晃一下 */
+  .giftbox.open .giftbox-lid{transform:translateX(-50%) translateY(-60px) rotate(-18deg);opacity:0;}
+  .giftbox.open .giftbox-bow{transform:translateX(-50%) translateY(-30px);}
+  .giftbox.open .giftbox-body{animation:boxPop .5s ease;}
+  @keyframes boxPop{0%{transform:translateX(-50%) scale(1);}40%{transform:translateX(-50%) scale(1.12);}100%{transform:translateX(-50%) scale(1);}}
+  .giftbox-sparkle{
+    position:absolute;top:0;left:0;right:0;text-align:center;font-size:1.6rem;
+    opacity:0;pointer-events:none;
+  }
+  .giftbox-sparkle.show{animation:sparkleUp .8s ease forwards;}
+  @keyframes sparkleUp{0%{opacity:0;transform:translateY(20px) scale(.6);}40%{opacity:1;}100%{opacity:0;transform:translateY(-30px) scale(1.2);}}
+  .giftbox-hint{text-align:center;font-weight:800;color:var(--accent-2);font-size:1.05rem;margin-top:6px;}
   .aff-inter{
     display:flex;justify-content:space-between;align-items:center;
     background:var(--card);border:2px solid #ffd9ec;border-radius:14px;
@@ -5117,7 +5154,40 @@ function giveGift(id, gid) {
   if (!a.gaveGifts.includes(gid)) a.gaveGifts.push(gid);
   sfx.correct();
   saveAffection();
-  showGiftReaction(id, g);
+  showGiftBox(id, g); // 先顯示包好的禮物盒,點一下拆開
+}
+
+// 拆禮物動畫:先看到包好的禮物盒(上面有偶像emoji),點一下拆開
+function showGiftBox(id, g) {
+  const idol = idols.find(i => i.id === id);
+  const area = $("affectionArea");
+  area.innerHTML = `
+    <div class="gift-react">
+      <div class="giftbox-wrap" id="giftboxWrap">
+        <div class="giftbox" id="giftbox">
+          <div class="giftbox-lid">
+            <div class="giftbox-bow">🎀</div>
+          </div>
+          <div class="giftbox-body">
+            <div class="giftbox-face">${esc(idol.emoji || "🎁")}</div>
+          </div>
+        </div>
+        <div class="giftbox-sparkle" id="giftboxSparkle"></div>
+      </div>
+      <div class="giftbox-hint" id="giftboxHint">👆 點一下拆開禮物!</div>
+    </div>`;
+  $("giftboxWrap").onclick = () => {
+    const box = $("giftbox");
+    if (box.classList.contains("open")) return;
+    box.classList.add("open");
+    sfx.gacha ? sfx.gacha() : sfx.correct();
+    // 亮亮的星星效果
+    const sp = $("giftboxSparkle");
+    sp.innerHTML = "✨💫⭐✨💫";
+    sp.classList.add("show");
+    $("giftboxHint").textContent = "🎉 拆開囉!";
+    setTimeout(() => showGiftReaction(id, g), 700); // 拆開後看反應
+  };
 }
 
 // 送禮反應畫面:偶像照片 + 禮物 + 專屬句子
