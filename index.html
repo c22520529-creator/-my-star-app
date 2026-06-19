@@ -4607,6 +4607,7 @@ function affOf(id) {
   if (!affection[id].bank) affection[id].bank = { saved: 0, lastInterest: "" }; // 銀行 {存款, 上次結算利息的日期}
   if (!affection[id].lastSurprise) affection[id].lastSurprise = ""; // 偶像上次回送驚喜的日期(一天最多一次)
   if (!affection[id].chat) affection[id].chat = []; // 聊天訊息 [{who:"idol"/"me", text, time}]
+  if (affection[id].craving === undefined) affection[id].craving = null; // 她現在想要的東西 {type, fid}
   // 換日就清空今天的任務勾選 + 互動紀錄 + 猜拳場數
   const t = todayStr();
   if (affection[id].tasks.date !== t) affection[id].tasks = { date: t, done: [] };
@@ -4858,25 +4859,46 @@ function openMsgList() {
 
 // 偶像自動傳的訊息(隨機,生動)
 const CHAT_AUTO = {
-  hungry:  ["我肚子餓了啦 🥺", "好想吃東西喔~你會餵我嗎?😋", "肚子在叫了啦哈哈"],
   cold:    ["最近天氣好冷,好想要棉被 🛏️", "冷冷的,抱抱我啦 🥶", "想窩在暖暖的被子裡 🥺"],
   bored:   ["好無聊喔~", "你什麼時候要來看我?🥹", "在做什麼呢?想你了 💭", "陪我聊天啦 😆"],
   miss:    ["今天有想我嗎?💕", "我很想你欸 🥺", "好想見到你喔 🥰"],
   happy:   ["今天心情超好的!😄", "跟你聊天好開心 🎶", "你是我最棒的粉絲 ✨"],
   thanks:  ["謝謝你一直支持我 🥹", "有你真好 💗", "謝謝你對我這麼好 🥰"]
 };
-function randomIdolMsg(id) {
+// 萬用句:接什麼都不奇怪,不會「答非所問」
+const CHAT_FILLER = ["嗯嗯 😊", "真的嗎?😄", "好呀 💕", "我知道了~", "謝謝你跟我說 🥰", "哈哈這樣啊 😆", "好喔 💗", "聽你說話好開心 ✨", "嗯嗯,然後呢?😊"];
+
+// 偶像主動講的話(包含:有機會說「想吃某個食物」並記住)
+function idolSpeak(id) {
   const a = affOf(id);
-  const pools = Object.values(CHAT_AUTO);
-  // 如果送過禮物,有機會講「謝謝你送的 ___」
-  if (a.gaveGifts && a.gaveGifts.length > 0 && Math.random() < 0.35) {
+  // 如果現在已經有想要的東西還沒滿足,就提醒一下
+  if (a.craving && a.craving.type === "food") {
+    const f = foodById(a.craving.fid);
+    if (f) return `我還想吃 ${f.icon} ${f.name} 啦~你會餵我嗎?🥺`;
+  }
+  // 30% 機率:說想吃某個食物(從全部食物隨機挑,並記住)
+  if (Math.random() < 0.3) {
+    const f = FOODS[Math.floor(Math.random() * FOODS.length)];
+    a.craving = { type: "food", fid: f.id };
+    saveAffection();
+    return `我好想吃 ${f.icon} ${f.name} 喔~你可以餵我嗎?😋`;
+  }
+  // 否則:隨機講閒聊 / 謝謝禮物
+  if (a.gaveGifts && a.gaveGifts.length > 0 && Math.random() < 0.3) {
     const gid = a.gaveGifts[Math.floor(Math.random() * a.gaveGifts.length)];
     const g = giftById(gid);
     if (g) return `謝謝你送的 ${g.icon} ${g.name},我好喜歡!🥰`;
   }
+  const pools = Object.values(CHAT_AUTO);
   const pool = pools[Math.floor(Math.random() * pools.length)];
   return pool[Math.floor(Math.random() * pool.length)];
 }
+
+// 回應你說的話(萬用句,不會亂回);留 randomIdolMsg 名稱給打招呼用
+function idolReply(id) {
+  return CHAT_FILLER[Math.floor(Math.random() * CHAT_FILLER.length)];
+}
+function randomIdolMsg(id) { return idolSpeak(id); }
 
 let chatSpeaker = "me"; // 自訂時,目前是誰在說
 function openChat(id) {
@@ -4940,7 +4962,7 @@ function renderChat(id) {
     // 你切到「偶像」自己幫她打字時,她就不會再自動回(避免跳針)
     if (speaker === "me") {
       setTimeout(() => {
-        a.chat.push({ who: "idol", text: randomIdolMsg(id), time: Date.now() });
+        a.chat.push({ who: "idol", text: idolReply(id), time: Date.now() });
         if (a.chat.length > 200) a.chat = a.chat.slice(-200);
         saveAffection();
         sfx.correct();
@@ -5391,13 +5413,25 @@ function feedFood(id, fid, btnEl) {
   a.bag[fid]--;
   if (a.bag[fid] <= 0) delete a.bag[fid];
   a.points += f.pts; // 餵了就加好感度(每次都加)
+
+  // 💬 如果這正是她在聊天裡說想吃的食物 → 在聊天裡道謝,並清掉願望
+  let satisfied = false;
+  if (a.craving && a.craving.type === "food" && a.craving.fid === fid) {
+    a.craving = null;
+    satisfied = true;
+    const thanks = ["謝謝你餵我吃 " + f.icon + "!真的好好吃 😋", "嗯~ " + f.icon + " 好甜好好吃!謝謝你 🥰", "你最好了!" + f.icon + " 我超喜歡的 💕", "吃到 " + f.icon + " 好幸福~謝謝你 🥹"];
+    a.chat.push({ who: "idol", text: thanks[Math.floor(Math.random() * thanks.length)], time: Date.now() });
+    if (a.chat.length > 200) a.chat = a.chat.slice(-200);
+  }
   saveAffection();
 
   // 🍽️ 食物從按鈕飛到偶像嘴邊的動畫
   flyFoodToMouth(f.icon, btnEl, () => {
     sfx.correct();
     chewIdol(); // 偶像吃東西的咀嚼動畫
-    toast(`${f.icon} 好好吃!${esc(idols.find(i=>i.id===id).name)} 好感度 +${f.pts} 💕`);
+    toast(satisfied
+      ? `${f.icon} 這正是 ${esc(idols.find(i=>i.id===id).name)} 想吃的!她超開心 +${f.pts} 💕`
+      : `${f.icon} 好好吃!${esc(idols.find(i=>i.id===id).name)} 好感度 +${f.pts} 💕`);
     openFeed(id); // 重畫(更新背包數量)
   });
 }
