@@ -908,6 +908,20 @@
   .giftbox-sparkle.show{animation:sparkleUp .8s ease forwards;}
   @keyframes sparkleUp{0%{opacity:0;transform:translateY(20px) scale(.6);}40%{opacity:1;}100%{opacity:0;transform:translateY(-30px) scale(1.2);}}
   .giftbox-hint{text-align:center;font-weight:800;color:var(--accent-2);font-size:1.05rem;margin-top:6px;}
+
+  /* ---------- 偶像回送驚喜 ---------- */
+  .surprise-badge{
+    font-size:1.2rem;font-weight:900;color:var(--accent-2);margin-bottom:14px;
+    animation:judgePop .6s ease;
+  }
+  .surprise-letter{
+    max-width:300px;margin:14px auto 0;border-radius:14px;padding:16px 18px;
+    background:linear-gradient(160deg,#fff0f6,#ffe0ec);box-shadow:var(--shadow);
+  }
+  body.dark .surprise-letter{background:linear-gradient(160deg,#3a2630,#2e2236);}
+  .surprise-letter-text{font-weight:700;font-size:1rem;line-height:1.7;color:#a23b6c;margin-bottom:10px;}
+  body.dark .surprise-letter-text{color:#ffb3d1;}
+  .surprise-letter-money{font-weight:900;font-size:1.2rem;color:var(--accent-2);}
   .aff-inter{
     display:flex;justify-content:space-between;align-items:center;
     background:var(--card);border:2px solid #ffd9ec;border-radius:14px;
@@ -4511,6 +4525,7 @@ function affOf(id) {
   if (!affection[id].gaveGifts) affection[id].gaveGifts = []; // 送過的禮物id(他會收藏)
   if (!affection[id].checkin) affection[id].checkin = { last: "", streak: 0 }; // 每日簽到 {上次日期, 連續天數}
   if (!affection[id].bank) affection[id].bank = { saved: 0, lastInterest: "" }; // 銀行 {存款, 上次結算利息的日期}
+  if (!affection[id].lastSurprise) affection[id].lastSurprise = ""; // 偶像上次回送驚喜的日期(一天最多一次)
   // 換日就清空今天的任務勾選 + 互動紀錄 + 猜拳場數
   const t = todayStr();
   if (affection[id].tasks.date !== t) affection[id].tasks = { date: t, done: [] };
@@ -4545,6 +4560,43 @@ function dailyCheckin(id) {
   startConfetti();
   toast(`📅 簽到成功!連續 ${a.checkin.streak} 天　${esc(idol.name)} +${reward} 元 💰`);
   openAffection(id);
+}
+
+/* ================== 💌 偶像回送驚喜 ================== */
+const SURPRISE_MSGS = [
+  "謝謝你一直陪著我,這個給你 🥹",
+  "今天想到你,想說謝謝你的支持 💕",
+  "你總是對我這麼好,換我送你 🎁",
+  "有你這個粉絲,我好幸福,收下吧 🥰",
+  "辛苦你一直應援我了,這是我的心意 💗",
+  "想讓你知道,我也一直記得你 ✨",
+  "謝謝你陪我走過這些日子,送你的 🌟"
+];
+function idolSurprise(id) {
+  const idol = idols.find(i => i.id === id);
+  const a = affOf(id);
+  const photo = (idol.gallery && idol.gallery[0]) || idol.photoData || idol.photoUrl;
+  const money = [30, 50, 50, 80, 100][Math.floor(Math.random() * 5)]; // 隨機一筆錢
+  const msg = SURPRISE_MSGS[Math.floor(Math.random() * SURPRISE_MSGS.length)];
+  a.coins += money;
+  saveAffection();
+  sfx.win();
+  startConfetti();
+  const area = $("affectionArea");
+  area.innerHTML = `
+    <div class="gift-react">
+      <div class="surprise-badge">💌 ${esc(idol.name)} 送你驚喜!</div>
+      <div class="gift-react-stage">
+        ${photo ? `<img class="gift-react-photo" src="${esc(photo)}" alt="">` : `<div class="gift-react-emoji">${esc(idol.emoji || "💖")}</div>`}
+        <div class="gift-react-item">💝</div>
+      </div>
+      <div class="surprise-letter">
+        <div class="surprise-letter-text">「${esc(msg)}」</div>
+        <div class="surprise-letter-money">💰 +${money} 元</div>
+      </div>
+      <button class="primary-btn" id="surpriseOk" style="margin-top:16px">收下 🥰</button>
+    </div>`;
+  $("surpriseOk").onclick = () => openAffection(id); // 不帶 fromPick,不會再觸發
 }
 
 /* ================== 🏦 銀行(存錢生利息) ================== */
@@ -4648,15 +4700,21 @@ function setupAffection() {
       ${photo ? `<img src="${esc(photo)}" style="width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0">`
               : `<span class="game-pick-emoji">${esc(idol.emoji || "💖")}</span>`}
       <span><b>${esc(idol.name)}</b><br><small>Lv.${affLevel(a.points)} · 好感度 ${a.points}</small></span>`;
-    btn.onclick = () => openAffection(idol.id);
+    btn.onclick = () => openAffection(idol.id, true);
     pick.appendChild(btn);
   });
 }
 
-function openAffection(id) {
+function openAffection(id, fromPick) {
   const idol = idols.find(i => i.id === id);
   const a = affOf(id);
   const today = todayStr();
+  // 💌 偶像偶爾回送驚喜:只在「從選單進來」時、一天最多一次、機率 8%
+  if (fromPick && a.lastSurprise !== today && Math.random() < 0.08) {
+    a.lastSurprise = today;
+    idolSurprise(id);
+    return; // 先顯示驚喜畫面,關掉後再進好感度頁
+  }
   const lv = affLevel(a.points);
   const inLevel = a.points % AFF_LEVEL_STEP;
   const pct = Math.round(inLevel / AFF_LEVEL_STEP * 100);
@@ -4717,7 +4775,12 @@ function openAffection(id) {
       </div>
     </details>
 
-    <button class="ghost-btn" id="affBackPick" style="margin-top:16px;width:100%">← 換一位養</button>`;
+    <button class="ghost-btn" id="affBackPick" style="margin-top:16px;width:100%">← 換一位養</button>
+
+    <div class="phone-launcher" id="phoneLauncher">
+      <div class="phone-launcher-icon">📱</div>
+      <div class="phone-launcher-label">${esc(idol.name)} 的手機</div>
+    </div>`;
 
   $("affDaily").onclick = () => {
     a.points += 5;
@@ -4727,6 +4790,7 @@ function openAffection(id) {
     toast("應援 +5 好感度 💕");
   };
   $("affBackPick").onclick = setupAffection;
+  $("phoneLauncher").onclick = () => openPhone(id);
   $("affSetBtn").onclick = () => {
     const v = Math.max(0, parseInt($("affSetInput").value, 10) || 0);
     a.points = v;
