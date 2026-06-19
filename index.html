@@ -922,6 +922,39 @@
   .surprise-letter-text{font-weight:700;font-size:1rem;line-height:1.7;color:#a23b6c;margin-bottom:10px;}
   body.dark .surprise-letter-text{color:#ffb3d1;}
   .surprise-letter-money{font-weight:900;font-size:1.2rem;color:var(--accent-2);}
+
+  /* ---------- 📱 手機 ---------- */
+  .phone-open-btn{
+    display:block;width:100%;max-width:380px;margin:8px auto 0;
+    padding:16px;border-radius:18px;border:none;cursor:pointer;font-family:inherit;
+    font-size:1.1rem;font-weight:800;color:#fff;
+    background:linear-gradient(135deg,#7a9bff,#a87aff);box-shadow:var(--shadow);
+  }
+  .phone-open-btn:hover{transform:translateY(-2px);}
+  .phone-frame{
+    max-width:300px;margin:0 auto;border-radius:28px;padding:14px;
+    background:linear-gradient(160deg,#2d2a4e,#3a3560);
+    box-shadow:0 10px 30px rgba(0,0,0,.25);border:4px solid #1a1830;
+  }
+  .phone-top{text-align:center;padding:8px 0 14px;}
+  .phone-time{color:#fff;font-weight:800;font-size:1rem;}
+  .phone-home{
+    background:rgba(255,255,255,.08);border-radius:18px;padding:18px;
+    display:grid;grid-template-columns:1fr 1fr;gap:14px;min-height:200px;align-content:start;
+  }
+  .phone-app{
+    background:rgba(255,255,255,.95);border:none;border-radius:18px;padding:16px 8px;
+    cursor:pointer;font-family:inherit;display:flex;flex-direction:column;
+    align-items:center;gap:6px;transition:.15s;
+  }
+  .phone-app:hover{transform:scale(1.05);}
+  .phone-app-icon{font-size:2.2rem;}
+  .phone-app-name{font-size:.85rem;font-weight:700;color:var(--ink);}
+  .phone-home-btn{
+    display:block;width:100%;margin-top:14px;padding:12px;border-radius:14px;
+    border:none;cursor:pointer;font-family:inherit;font-weight:700;
+    background:rgba(255,255,255,.9);color:var(--ink);
+  }
   .aff-inter{
     display:flex;justify-content:space-between;align-items:center;
     background:var(--card);border:2px solid #ffd9ec;border-radius:14px;
@@ -4688,7 +4721,8 @@ function setupAffection() {
   // 選一位偶像來養
   area.innerHTML = `
     <div class="mem-pick-title">要養誰的好感度?💌</div>
-    <div class="aff-pick" id="affPick"></div>`;
+    <div class="aff-pick" id="affPick"></div>
+    <button class="phone-open-btn" id="phoneOpenBtn">📱 打開手機</button>`;
   const pick = $("affPick");
   list.forEach(idol => {
     const a = affOf(idol.id);
@@ -4703,6 +4737,32 @@ function setupAffection() {
     btn.onclick = () => openAffection(idol.id, true);
     pick.appendChild(btn);
   });
+  $("phoneOpenBtn").onclick = openPhone;
+}
+
+/* ================== 📱 手機 ================== */
+function openPhone() {
+  const area = $("affectionArea");
+  area.innerHTML = `
+    <div class="phone-frame">
+      <div class="phone-top">
+        <span class="phone-time">📱 我的手機</span>
+      </div>
+      <div class="phone-home">
+        <button class="phone-app" id="phoneMsg">
+          <span class="phone-app-icon">💬</span>
+          <span class="phone-app-name">訊息</span>
+        </button>
+        <button class="phone-app" id="phoneTransfer">
+          <span class="phone-app-icon">💸</span>
+          <span class="phone-app-name">轉帳</span>
+        </button>
+      </div>
+      <button class="phone-home-btn" id="phoneBack">🏠 回主畫面</button>
+    </div>`;
+  $("phoneMsg").onclick = () => toast("💬 訊息功能馬上就來囉!");
+  $("phoneTransfer").onclick = () => toast("💸 轉帳功能馬上就來囉!");
+  $("phoneBack").onclick = setupAffection;
 }
 
 function openAffection(id, fromPick) {
