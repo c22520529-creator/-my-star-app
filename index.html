@@ -358,9 +358,18 @@
     width:100%;display:flex;align-items:center;gap:16px;text-align:left;
     background:var(--card);border:2px solid #ece2fb;border-radius:18px;
     padding:18px 20px;margin-bottom:12px;cursor:pointer;font-family:inherit;
-    color:var(--ink);transition:.15s;
+    color:var(--ink);transition:.15s;position:relative;
+    -webkit-touch-callout:none; /* 手機長按不跳系統選單 */
   }
   .game-pick:hover{border-color:var(--accent-2);transform:translateY(-2px);}
+  .game-pick.pinned{border-color:#ffb84d;background:linear-gradient(160deg,#fff8ec,var(--card));}
+  body.dark .game-pick.pinned{background:linear-gradient(160deg,#3a3320,var(--card));}
+  .game-pin-badge{position:absolute;top:8px;right:12px;font-size:1.1rem;}
+  .game-pin-hint{
+    text-align:center;color:var(--ink-soft);font-size:.8rem;
+    background:#f3eaff;border-radius:10px;padding:8px 12px;margin-bottom:14px;
+  }
+  body.dark .game-pin-hint{background:#2e2640;}
   .game-pick-emoji{font-size:2.2rem;flex-shrink:0;}
   .game-pick b{font-size:1.1rem;}
   .game-pick small{color:var(--ink-soft);font-size:.82rem;}
@@ -1218,6 +1227,7 @@ window.FIREBASE_CONFIG = {
     <!-- 遊戲選單 -->
     <div id="gameMenu">
       <div class="bd-section-title">選一個遊戲來玩 🎮</div>
+      <div class="game-pin-hint">小撇步:電腦對遊戲按右鍵、手機長按,可以把喜歡的遊戲釘到最前面 📌</div>
       <button class="game-pick" data-game="guess">
         <span class="game-pick-emoji">🔍</span>
         <span><b>猜猜看</b><br><small>看提示猜是哪位偶像</small></span>
@@ -2504,6 +2514,62 @@ $("snakeBack").onclick = showGameMenu;
 $("mineBack").onclick = showGameMenu;
 $("sudokuBack").onclick = showGameMenu;
 $("affectionBack").onclick = showGameMenu;
+
+/* ========== 釘選喜歡的遊戲到最前面 📌 ========== */
+let pinnedGames = []; // 釘選的遊戲 data-game 清單(存在 prefs)
+
+function applyPinnedGames() {
+  const menu = $("gameMenu");
+  if (!menu) return;
+  const title = menu.querySelector(".bd-section-title");
+  const hint = menu.querySelector(".game-pin-hint");
+  const anchor = hint || title; // 釘選的遊戲放在說明(或標題)後面
+  const btns = Array.from(menu.querySelectorAll(".game-pick"));
+  // 先清掉舊的釘選標記
+  btns.forEach(b => {
+    b.classList.remove("pinned");
+    const old = b.querySelector(".game-pin-badge");
+    if (old) old.remove();
+  });
+  // 釘選的遊戲照 pinnedGames 順序排到最前面(倒著插,順序才對)
+  const pinned = pinnedGames
+    .map(g => btns.find(b => b.dataset.game === g))
+    .filter(Boolean);
+  pinned.slice().reverse().forEach(b => {
+    b.classList.add("pinned");
+    const badge = document.createElement("span");
+    badge.className = "game-pin-badge";
+    badge.textContent = "📌";
+    b.appendChild(badge);
+    menu.insertBefore(b, anchor.nextSibling); // 放到說明後面(最前面)
+  });
+}
+
+function togglePinGame(g) {
+  const i = pinnedGames.indexOf(g);
+  if (i >= 0) { pinnedGames.splice(i, 1); toast("取消釘選 📌"); }
+  else { pinnedGames.unshift(g); toast("已釘選到最前面 📌"); }
+  savePinnedGames();
+  applyPinnedGames();
+  sfx.tap();
+}
+
+function savePinnedGames() {
+  setDoc(doc(db, "users", uid, "settings", "prefs"), { pinnedGames }, { merge: true });
+}
+
+// 綁定右鍵(電腦) + 長按(手機)到每個遊戲按鈕
+document.querySelectorAll(".game-pick").forEach(b => {
+  const g = b.dataset.game;
+  b.addEventListener("contextmenu", e => { e.preventDefault(); togglePinGame(g); }); // 電腦右鍵
+  let pressTimer = null, moved = false;
+  b.addEventListener("touchstart", () => {
+    moved = false;
+    pressTimer = setTimeout(() => { if (!moved) togglePinGame(g); }, 600);
+  }, { passive: true });
+  b.addEventListener("touchmove", () => { moved = true; clearTimeout(pressTimer); }, { passive: true });
+  b.addEventListener("touchend", () => clearTimeout(pressTimer));
+});
 
 /* ================== 猜照片遊戲 🔍❤️ ================== */
 let guessGame = null;
@@ -4349,6 +4415,7 @@ function affOf(id) {
   if (!affection[id].bag) affection[id].bag = {}; // 食物背包 {foodId: 數量}
   if (!affection[id].giftBag) affection[id].giftBag = {}; // 禮物背包 {giftId: 數量}
   if (!affection[id].gaveGifts) affection[id].gaveGifts = []; // 送過的禮物id(他會收藏)
+  if (!affection[id].checkin) affection[id].checkin = { last: "", streak: 0 }; // 每日簽到 {上次日期, 連續天數}
   // 換日就清空今天的任務勾選 + 互動紀錄 + 猜拳場數
   const t = todayStr();
   if (affection[id].tasks.date !== t) affection[id].tasks = { date: t, done: [] };
@@ -4357,6 +4424,33 @@ function affOf(id) {
   return affection[id];
 }
 function affLevel(points) { return Math.floor(points / AFF_LEVEL_STEP) + 1; }
+
+// 回傳昨天的日期字串(跟 todayStr 同格式),用來判斷連續簽到有沒有中斷
+function yesterdayStr() {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+}
+
+// 每日簽到:連續加碼,第1天+50,每天多10,最多+100,中斷重來
+function dailyCheckin(id) {
+  const a = affOf(id);
+  const today = todayStr();
+  if (a.checkin.last === today) { toast("今天已經簽到過囉,明天再來 😊"); return; }
+  // 昨天有簽 → 連續+1;否則重新從第1天算
+  if (a.checkin.last === yesterdayStr()) a.checkin.streak += 1;
+  else a.checkin.streak = 1;
+  a.checkin.last = today;
+  // 金額:第1天50,每多1天+10,上限100
+  const reward = Math.min(50 + (a.checkin.streak - 1) * 10, 100);
+  a.coins += reward;
+  saveAffection();
+  sfx.win();
+  const idol = idols.find(i => i.id === id);
+  startConfetti();
+  toast(`📅 簽到成功!連續 ${a.checkin.streak} 天　${esc(idol.name)} +${reward} 元 💰`);
+  openAffection(id);
+}
 
 function setupAffection() {
   const area = $("affectionArea");
@@ -4394,6 +4488,7 @@ function openAffection(id) {
   const pct = Math.round(inLevel / AFF_LEVEL_STEP * 100);
   const msg = AFF_MSGS[Math.min(lv - 1, AFF_MSGS.length - 1)];
   const dailyDone = a.lastDaily === today;
+  const checkinDoneToday = a.checkin.last === today; // 今天簽到過了沒
   const photo = (idol.gallery && idol.gallery[0]) || idol.photoData || idol.photoUrl;
 
   // 🎁 平常隨機拿著一個送過的禮物(約 40% 機率才出現,像偶爾的驚喜)
@@ -4430,29 +4525,21 @@ function openAffection(id) {
       <div class="aff-inters" id="affInters" style="margin-top:12px"></div>
     </details>
 
-    <div class="bd-section-title" style="margin-top:20px">跟他猜拳 🪙</div>
+    <div class="bd-section-title" style="margin-top:20px">賺錢 💰</div>
     <div style="text-align:center;color:var(--ink-soft);font-weight:700;margin-bottom:10px">💰 ${esc(idol.name)} 的錢包：<b style="color:var(--accent-2)">${a.coins}</b> 元</div>
+    <button class="primary-btn" id="affCheckinBtn" style="width:100%;max-width:340px;display:block;margin:0 auto 10px;font-size:1.05rem;padding:14px">${checkinDoneToday ? `✅ 今天簽到過了（連續 ${a.checkin.streak} 天）` : `📅 每日簽到領錢（連續 ${a.checkin.streak} 天）`}</button>
     <button class="primary-btn" id="affRpsBtn" style="width:100%;max-width:340px;display:block;margin:0 auto;font-size:1.05rem;padding:14px">🪙 開始猜拳遊戲（贏錢）</button>
     <button class="ghost-btn" id="affShopBtn" style="width:100%;max-width:340px;display:block;margin:10px auto 0;font-size:1.05rem;padding:14px">🛒 去超市買食物</button>
 
     <details class="aff-tool">
       <summary>🔧 手動調整好感度</summary>
       <div class="aff-tool-body">
-        <div class="setting-desc" style="margin-bottom:8px">直接設定 ${esc(idol.name)} 的好感度數字（每 20 分升一級）</div>
+        <div class="setting-desc" style="margin-bottom:8px">直接設定 ${esc(idol.name)} 的好感度數字（每 20 分升一級，例如 Lv.5 = 80分）</div>
         <div style="display:flex;gap:8px;justify-content:center;align-items:center">
           <input type="number" id="affSetInput" value="${a.points}" min="0" style="width:90px;padding:8px;border-radius:10px;border:2px solid #ece2fb;text-align:center;font-size:1rem;font-family:inherit">
           <button class="primary-btn" id="affSetBtn" style="padding:8px 18px">設定</button>
         </div>
       </div>
-    </details>
-
-    <details class="aff-tool">
-      <summary>🔧 手動設定好感度</summary>
-      <div class="aff-tool-body">
-        <input type="number" id="affSetInput" placeholder="輸入好感度數字" value="${a.points}" min="0">
-        <button class="primary-btn" id="affSetBtn">設定</button>
-      </div>
-      <div class="setting-desc" style="margin-top:6px">例如:Lv.5 = 80分、Lv.3 = 40分(每20分一級)</div>
     </details>
 
     <button class="ghost-btn" id="affBackPick" style="margin-top:16px;width:100%">← 換一位養</button>`;
@@ -4570,13 +4657,7 @@ function openAffection(id) {
   // 猜拳入口按鈕 → 進獨立遊戲頁
   $("affRpsBtn").onclick = () => openRpsGame(id);
   $("affShopBtn").onclick = () => openShop(id);
-  $("affSetBtn").onclick = () => {
-    const v = Math.max(0, parseInt($("affSetInput").value, 10) || 0);
-    a.points = v;
-    saveAffection();
-    openAffection(id);
-    toast(`好感度設定成 ${v}（Lv.${affLevel(v)}）✅`);
-  };
+  $("affCheckinBtn").onclick = () => dailyCheckin(id);
 }
 
 const RPS_HANDS = [
@@ -6500,6 +6581,8 @@ function listenSettings() {
     gachaDaily = data.gachaDaily || { date: "", left: 3 }; // 每日抽卡
     fortuneToday = data.fortuneToday || null; // 今天的籤
     fortuneLog = data.fortuneLog || []; // 籤收藏冊
+    pinnedGames = data.pinnedGames || []; // 釘選的遊戲
+    applyPinnedGames();
     // 好感度:如果剛剛(3秒內)本地才改過,就不要用雲端資料蓋回來
     // (避免送禮/餵食扣掉後,延遲的雲端回寫又把數量補回去的 bug)
     if (Date.now() - lastAffSave > 3000) {
