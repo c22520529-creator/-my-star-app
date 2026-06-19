@@ -4880,12 +4880,10 @@ function randomIdolMsg(id) {
 
 let chatSpeaker = "me"; // 自訂時,目前是誰在說
 function openChat(id) {
-  const idol = idols.find(i => i.id === id);
   const a = affOf(id);
-  // 進來時,偶像有機會主動傳一則(如果上一則不是偶像剛傳的)
-  if (a.chat.length === 0 || a.chat[a.chat.length - 1].who !== "idol" || Math.random() < 0.4) {
+  // 只有第一次進來(完全沒聊過)時,偶像先打個招呼
+  if (a.chat.length === 0) {
     a.chat.push({ who: "idol", text: randomIdolMsg(id), time: Date.now() });
-    if (a.chat.length > 200) a.chat = a.chat.slice(-200);
     saveAffection();
   }
   renderChat(id);
@@ -4932,11 +4930,23 @@ function renderChat(id) {
   const send = () => {
     const t = $("chatInput").value.trim();
     if (!t) return;
-    a.chat.push({ who: chatSpeaker, text: t, time: Date.now() });
+    const speaker = chatSpeaker;
+    a.chat.push({ who: speaker, text: t, time: Date.now() });
     if (a.chat.length > 200) a.chat = a.chat.slice(-200);
     saveAffection();
     sfx.tap();
     renderChat(id);
+    // 只有「你(我)」說完話,偶像才回一句(一來一往,不亂插話)
+    // 你切到「偶像」自己幫她打字時,她就不會再自動回(避免跳針)
+    if (speaker === "me") {
+      setTimeout(() => {
+        a.chat.push({ who: "idol", text: randomIdolMsg(id), time: Date.now() });
+        if (a.chat.length > 200) a.chat = a.chat.slice(-200);
+        saveAffection();
+        sfx.correct();
+        renderChat(id);
+      }, 700); // 等一下下再回,像真的在打字
+    }
   };
   $("chatSend").onclick = send;
   $("chatInput").addEventListener("keydown", e => { if (e.key === "Enter") send(); });
