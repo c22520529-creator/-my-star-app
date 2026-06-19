@@ -814,6 +814,45 @@
   .cheer-rank{font-size:1.6rem;font-weight:900;color:var(--accent-2);margin-bottom:8px;}
   .cheer-result-stats{font-size:.9rem;line-height:1.7;color:var(--ink-soft);font-weight:700;}
   .cheer-result-stats b{color:var(--accent-2);}
+
+  /* ---------- 餵食餐桌畫面 ---------- */
+  .feed-scene{
+    position:relative;width:320px;max-width:92%;margin:0 auto;
+    border-radius:18px;padding:20px 0 0;overflow:hidden;
+    background:linear-gradient(180deg,#fff6ec 0%,#ffeaf2 100%);box-shadow:var(--shadow);
+  }
+  body.dark .feed-scene{background:linear-gradient(180deg,#322a22,#2e2236);}
+  .feed-idol-wrap{position:relative;display:inline-block;}
+  .feed-idol{width:120px;height:120px;border-radius:50%;object-fit:cover;border:4px solid #fff;}
+  .feed-idol-emoji{font-size:5rem;}
+  .feed-idol.chew{animation:feedChew .35s ease;}
+  @keyframes feedChew{0%,100%{transform:scale(1);}50%{transform:scale(1.08) rotate(-2deg);}}
+  .feed-mouth{position:absolute;left:50%;bottom:24px;width:10px;height:10px;transform:translateX(-50%);}
+  .feed-table{
+    margin-top:14px;background:#f3d9b8;padding:10px;font-weight:700;color:#7a5a32;font-size:.9rem;
+  }
+  body.dark .feed-table{background:#4a3a28;color:#d8b88a;}
+  .feed-tray{
+    display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:360px;margin:12px auto 0;
+  }
+  .feed-food{
+    position:relative;width:62px;height:62px;border-radius:14px;border:2px solid #ece2fb;
+    background:var(--card);cursor:pointer;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;font-family:inherit;
+  }
+  .feed-food:hover{border-color:var(--accent-2);transform:translateY(-2px);}
+  .feed-food-icon{font-size:1.8rem;}
+  .feed-food-pts{font-size:.62rem;color:var(--accent-2);font-weight:700;}
+  .feed-food-owned{
+    position:absolute;top:-6px;right:-6px;background:var(--accent-2);color:#fff;
+    font-size:.7rem;font-weight:800;border-radius:999px;min-width:18px;height:18px;
+    display:flex;align-items:center;justify-content:center;padding:0 4px;
+  }
+  .feed-fly{
+    position:fixed;font-size:2rem;z-index:300;pointer-events:none;
+    transform:translate(-50%,-50%) scale(1);
+    transition:left .4s cubic-bezier(.4,0,.6,1),top .4s cubic-bezier(.4,0,.6,1),transform .4s ease,opacity .4s ease;
+  }
   .aff-inter{
     display:flex;justify-content:space-between;align-items:center;
     background:var(--card);border:2px solid #ffd9ec;border-radius:14px;
@@ -4855,43 +4894,87 @@ function openFeed(id) {
   const idol = idols.find(i => i.id === id);
   const a = affOf(id);
   const area = $("affectionArea");
+  const photo = (idol.gallery && idol.gallery[0]) || idol.photoData || idol.photoUrl;
   // 背包裡有的食物
   const owned = FOODS.filter(f => (a.bag[f.id] || 0) > 0);
-  let body;
+  let tray;
   if (owned.length === 0) {
-    body = `<div class="empty">背包空空的~<br>先去 🛒 超市買食物吧!</div>`;
+    tray = `<div class="empty" style="margin-top:14px">背包空空的~<br>先去 🛒 超市買食物吧!</div>`;
   } else {
-    body = `<div class="shop-grid">` + owned.map(f => `
-      <button class="shop-item" data-feed="${f.id}">
-        <div class="shop-emoji">${f.icon}</div>
-        <div class="shop-name">${esc(f.name)}</div>
-        <div class="shop-price">+${f.pts}💕</div>
-        <div class="shop-owned">${a.bag[f.id]}</div>
+    tray = `<div class="feed-tray" id="feedTray">` + owned.map(f => `
+      <button class="feed-food" data-feed="${f.id}">
+        <span class="feed-food-icon">${f.icon}</span>
+        <span class="feed-food-pts">+${f.pts}💕</span>
+        <span class="feed-food-owned">${a.bag[f.id]}</span>
       </button>`).join("") + `</div>`;
   }
   area.innerHTML = `
-    <div class="shop-head">🍚 餵 ${esc(idol.name)} 吃東西<br><span class="shop-coins">選一個背包裡的食物</span></div>
-    ${body}
-    <button class="ghost-btn" id="feedBack" style="margin-top:16px;width:100%">← 回好感度頁</button>`;
-  area.querySelectorAll("[data-feed]").forEach(b => b.onclick = () => feedFood(id, b.dataset.feed));
+    <div class="selfie-head">🍽️ 餵 ${esc(idol.emoji || "")} ${esc(idol.name)} 吃飯</div>
+    <div class="feed-scene" id="feedScene">
+      <div class="feed-idol-wrap">
+        ${photo ? `<img class="feed-idol" id="feedIdol" src="${esc(photo)}" alt="">` : `<div class="feed-idol-emoji" id="feedIdol">${esc(idol.emoji || "💖")}</div>`}
+        <div class="feed-mouth" id="feedMouth"></div>
+      </div>
+      <div class="feed-table">🍽️ ${esc(idol.name)} 在餐桌前等你餵 🪑</div>
+    </div>
+    <div class="selfie-tip">點桌上的食物,一口一口餵他吃 😋</div>
+    ${tray}
+    <button class="ghost-btn" id="feedBack" style="margin-top:14px;width:100%">← 回好感度頁</button>`;
+  area.querySelectorAll("[data-feed]").forEach(b => b.onclick = (e) => feedFood(id, b.dataset.feed, b));
   $("feedBack").onclick = () => openAffection(id);
 }
 
 let feedLock = false;
-function feedFood(id, fid) {
+function feedFood(id, fid, btnEl) {
   if (feedLock) return; // 防連點(手機快速雙擊會餵兩次)
   const a = affOf(id);
   const f = foodById(fid);
   if ((a.bag[fid] || 0) <= 0) { toast("這個食物沒了,去超市買吧 🛒"); return; }
   feedLock = true;
-  setTimeout(() => { feedLock = false; }, 350);
+  setTimeout(() => { feedLock = false; }, 450);
   a.bag[fid]--;
   if (a.bag[fid] <= 0) delete a.bag[fid];
   a.points += f.pts; // 餵了就加好感度(每次都加)
-  sfx.correct();
   saveAffection();
-  openFeed(id); // 重畫背包
-  toast(`${f.icon} 好好吃!${esc(idols.find(i=>i.id===id).name)} 好感度 +${f.pts} 💕`);
+
+  // 🍽️ 食物從按鈕飛到偶像嘴邊的動畫
+  flyFoodToMouth(f.icon, btnEl, () => {
+    sfx.correct();
+    chewIdol(); // 偶像吃東西的咀嚼動畫
+    toast(`${f.icon} 好好吃!${esc(idols.find(i=>i.id===id).name)} 好感度 +${f.pts} 💕`);
+    openFeed(id); // 重畫(更新背包數量)
+  });
+}
+
+// 食物飛到嘴邊
+function flyFoodToMouth(icon, btnEl, done) {
+  const mouth = $("feedMouth");
+  const scene = $("feedScene");
+  if (!mouth || !btnEl || !scene) { done(); return; }
+  const fly = document.createElement("div");
+  fly.className = "feed-fly";
+  fly.textContent = icon;
+  document.body.appendChild(fly);
+  const from = btnEl.getBoundingClientRect();
+  const to = mouth.getBoundingClientRect();
+  fly.style.left = (from.left + from.width / 2) + "px";
+  fly.style.top = (from.top + from.height / 2) + "px";
+  // 強制 reflow 再移動
+  void fly.offsetWidth;
+  fly.style.left = (to.left + to.width / 2) + "px";
+  fly.style.top = (to.top + to.height / 2) + "px";
+  fly.style.transform = "translate(-50%,-50%) scale(.4)";
+  fly.style.opacity = "0.2";
+  setTimeout(() => { fly.remove(); done(); }, 400);
+}
+
+// 偶像咀嚼動畫
+function chewIdol() {
+  const el = $("feedIdol");
+  if (!el) return;
+  el.classList.remove("chew");
+  void el.offsetWidth;
+  el.classList.add("chew");
 }
 
 /* ================== 送禮物(從禮物背包選) 🎁 ================== */
