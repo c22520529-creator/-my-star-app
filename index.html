@@ -955,6 +955,53 @@
     border:none;cursor:pointer;font-family:inherit;font-weight:700;
     background:rgba(255,255,255,.9);color:var(--ink);
   }
+
+  /* ---------- 💬 訊息列表 ---------- */
+  .msg-list{background:rgba(255,255,255,.95);border-radius:16px;overflow:hidden;min-height:200px;}
+  .msg-row{
+    width:100%;display:flex;align-items:center;gap:12px;padding:12px 14px;
+    background:none;border:none;border-bottom:1px solid #f0eaf8;cursor:pointer;
+    font-family:inherit;text-align:left;
+  }
+  .msg-row:hover{background:#f7f2ff;}
+  .msg-row.locked{opacity:.55;}
+  .msg-avatar{width:44px;height:44px;border-radius:50%;object-fit:cover;flex-shrink:0;}
+  .msg-avatar-emoji{width:44px;height:44px;border-radius:50%;background:#f3eaff;display:flex;align-items:center;justify-content:center;font-size:1.5rem;flex-shrink:0;}
+  .msg-row-info{display:flex;flex-direction:column;gap:2px;overflow:hidden;}
+  .msg-row-info b{color:var(--ink);font-size:.95rem;}
+  .msg-row-info small{color:var(--ink-soft);font-size:.78rem;}
+
+  /* ---------- 💬 聊天視窗 ---------- */
+  .chat-window{
+    background:#dfeefc;border-radius:16px;padding:12px;height:300px;overflow-y:auto;
+    display:flex;flex-direction:column;gap:10px;
+  }
+  body.dark .chat-window{background:#26303e;}
+  .chat-empty{text-align:center;color:#9aa;margin:auto;}
+  .chat-line{display:flex;align-items:flex-end;gap:6px;max-width:85%;}
+  .chat-line.left{align-self:flex-start;}
+  .chat-line.right{align-self:flex-end;justify-content:flex-end;}
+  .chat-avatar{width:30px;height:30px;border-radius:50%;object-fit:cover;flex-shrink:0;}
+  .chat-avatar-emoji{width:30px;height:30px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0;}
+  .chat-bubble{padding:9px 13px;border-radius:16px;font-size:.9rem;line-height:1.5;word-break:break-word;}
+  .chat-bubble.idol{background:#fff;color:var(--ink);border-bottom-left-radius:4px;}
+  .chat-bubble.me{background:#7cc4ff;color:#fff;border-bottom-right-radius:4px;}
+  body.dark .chat-bubble.idol{background:#3a3550;color:#eee;}
+  .chat-speaker-row{display:flex;align-items:center;gap:6px;margin-top:10px;flex-wrap:wrap;}
+  .chat-speaker-label{color:#fff;font-size:.8rem;font-weight:700;}
+  .chat-speaker-btn{
+    padding:5px 14px;border-radius:999px;border:2px solid rgba(255,255,255,.4);
+    background:rgba(255,255,255,.15);color:#fff;font-weight:700;cursor:pointer;font-family:inherit;font-size:.85rem;
+  }
+  .chat-speaker-btn.on{background:#fff;color:var(--accent-2);border-color:#fff;}
+  .chat-input-row{display:flex;gap:8px;margin-top:10px;}
+  .chat-input-row input{
+    flex:1;padding:10px 12px;border-radius:12px;border:none;font-family:inherit;font-size:.9rem;
+  }
+  .chat-send{
+    padding:10px 16px;border-radius:12px;border:none;cursor:pointer;font-family:inherit;
+    font-weight:800;background:var(--accent-2);color:#fff;
+  }
   .aff-inter{
     display:flex;justify-content:space-between;align-items:center;
     background:var(--card);border:2px solid #ffd9ec;border-radius:14px;
@@ -4559,6 +4606,7 @@ function affOf(id) {
   if (!affection[id].checkin) affection[id].checkin = { last: "", streak: 0 }; // 每日簽到 {上次日期, 連續天數}
   if (!affection[id].bank) affection[id].bank = { saved: 0, lastInterest: "" }; // 銀行 {存款, 上次結算利息的日期}
   if (!affection[id].lastSurprise) affection[id].lastSurprise = ""; // 偶像上次回送驚喜的日期(一天最多一次)
+  if (!affection[id].chat) affection[id].chat = []; // 聊天訊息 [{who:"idol"/"me", text, time}]
   // 換日就清空今天的任務勾選 + 互動紀錄 + 猜拳場數
   const t = todayStr();
   if (affection[id].tasks.date !== t) affection[id].tasks = { date: t, done: [] };
@@ -4760,9 +4808,146 @@ function openPhone() {
       </div>
       <button class="phone-home-btn" id="phoneBack">🏠 回主畫面</button>
     </div>`;
-  $("phoneMsg").onclick = () => toast("💬 訊息功能馬上就來囉!");
+  $("phoneMsg").onclick = openMsgList;
   $("phoneTransfer").onclick = () => toast("💸 轉帳功能馬上就來囉!");
   $("phoneBack").onclick = setupAffection;
+}
+
+/* ================== 💬 手機訊息 ================== */
+const PHONE_GIFT_ID = "phone"; // 送過這個禮物才解鎖訊息
+
+// 偶像有沒有手機(有沒有送過手機禮物)
+function hasPhone(id) {
+  const a = affOf(id);
+  return a.gaveGifts && a.gaveGifts.includes(PHONE_GIFT_ID);
+}
+
+// 訊息列表:顯示哪些偶像能聊天
+function openMsgList() {
+  const area = $("affectionArea");
+  const list = gameIdols();
+  let rows = "";
+  list.forEach(idol => {
+    const photo = (idol.gallery && idol.gallery[0]) || idol.photoData || idol.photoUrl;
+    const can = hasPhone(idol.id);
+    const a = affOf(idol.id);
+    const last = a.chat.length ? a.chat[a.chat.length - 1].text : (can ? "點進來聊天吧 💬" : "送他手機才能聊天 🔒");
+    rows += `<button class="msg-row${can ? "" : " locked"}" data-msg="${idol.id}">
+      ${photo ? `<img class="msg-avatar" src="${esc(photo)}">` : `<span class="msg-avatar-emoji">${esc(idol.emoji || "💖")}</span>`}
+      <span class="msg-row-info">
+        <b>${esc(idol.name)} ${can ? "" : "🔒"}</b>
+        <small>${esc(last.length > 16 ? last.slice(0, 16) + "…" : last)}</small>
+      </span>
+    </button>`;
+  });
+  area.innerHTML = `
+    <div class="phone-frame">
+      <div class="phone-top"><span class="phone-time">💬 訊息</span></div>
+      <div class="msg-list">${rows || `<div class="empty" style="color:#fff">還沒有偶像</div>`}</div>
+      <button class="phone-home-btn" id="msgListBack">← 回手機</button>
+    </div>`;
+  area.querySelectorAll("[data-msg]").forEach(b => {
+    b.onclick = () => {
+      const iid = b.dataset.msg;
+      if (!hasPhone(iid)) { toast("要先送他一支 📱 手機,才能跟他聊天喔!"); return; }
+      openChat(iid);
+    };
+  });
+  $("msgListBack").onclick = openPhone;
+}
+
+// 偶像自動傳的訊息(隨機,生動)
+const CHAT_AUTO = {
+  hungry:  ["我肚子餓了啦 🥺", "好想吃東西喔~你會餵我嗎?😋", "肚子在叫了啦哈哈"],
+  cold:    ["最近天氣好冷,好想要棉被 🛏️", "冷冷的,抱抱我啦 🥶", "想窩在暖暖的被子裡 🥺"],
+  bored:   ["好無聊喔~", "你什麼時候要來看我?🥹", "在做什麼呢?想你了 💭", "陪我聊天啦 😆"],
+  miss:    ["今天有想我嗎?💕", "我很想你欸 🥺", "好想見到你喔 🥰"],
+  happy:   ["今天心情超好的!😄", "跟你聊天好開心 🎶", "你是我最棒的粉絲 ✨"],
+  thanks:  ["謝謝你一直支持我 🥹", "有你真好 💗", "謝謝你對我這麼好 🥰"]
+};
+function randomIdolMsg(id) {
+  const a = affOf(id);
+  const pools = Object.values(CHAT_AUTO);
+  // 如果送過禮物,有機會講「謝謝你送的 ___」
+  if (a.gaveGifts && a.gaveGifts.length > 0 && Math.random() < 0.35) {
+    const gid = a.gaveGifts[Math.floor(Math.random() * a.gaveGifts.length)];
+    const g = giftById(gid);
+    if (g) return `謝謝你送的 ${g.icon} ${g.name},我好喜歡!🥰`;
+  }
+  const pool = pools[Math.floor(Math.random() * pools.length)];
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+let chatSpeaker = "me"; // 自訂時,目前是誰在說
+function openChat(id) {
+  const idol = idols.find(i => i.id === id);
+  const a = affOf(id);
+  // 進來時,偶像有機會主動傳一則(如果上一則不是偶像剛傳的)
+  if (a.chat.length === 0 || a.chat[a.chat.length - 1].who !== "idol" || Math.random() < 0.4) {
+    a.chat.push({ who: "idol", text: randomIdolMsg(id), time: Date.now() });
+    if (a.chat.length > 200) a.chat = a.chat.slice(-200);
+    saveAffection();
+  }
+  renderChat(id);
+}
+
+function renderChat(id) {
+  const idol = idols.find(i => i.id === id);
+  const a = affOf(id);
+  const photo = (idol.gallery && idol.gallery[0]) || idol.photoData || idol.photoUrl;
+  let bubbles = a.chat.map(msg => {
+    if (msg.who === "idol") {
+      return `<div class="chat-line left">
+        ${photo ? `<img class="chat-avatar" src="${esc(photo)}">` : `<span class="chat-avatar-emoji">${esc(idol.emoji || "💖")}</span>`}
+        <div class="chat-bubble idol">${esc(msg.text)}</div>
+      </div>`;
+    }
+    return `<div class="chat-line right"><div class="chat-bubble me">${esc(msg.text)}</div></div>`;
+  }).join("");
+  const area = $("affectionArea");
+  area.innerHTML = `
+    <div class="phone-frame">
+      <div class="phone-top"><span class="phone-time">💬 ${esc(idol.emoji || "")} ${esc(idol.name)}</span></div>
+      <div class="chat-window" id="chatWindow">${bubbles || `<div class="chat-empty">開始聊天吧 💬</div>`}</div>
+      <div class="chat-speaker-row">
+        <span class="chat-speaker-label">這句是誰說:</span>
+        <button class="chat-speaker-btn ${chatSpeaker === "me" ? "on" : ""}" id="spkMe">我</button>
+        <button class="chat-speaker-btn ${chatSpeaker === "idol" ? "on" : ""}" id="spkIdol">${esc(idol.name)}</button>
+      </div>
+      <div class="chat-input-row">
+        <input type="text" id="chatInput" placeholder="輸入訊息...">
+        <button class="chat-send" id="chatSend">送出</button>
+      </div>
+      <div class="draw-btns" style="margin-top:8px">
+        <button class="ghost-btn" id="chatPoke">👉 戳他(讓他說話)</button>
+        <button class="ghost-btn" id="chatBack">← 回訊息</button>
+      </div>
+    </div>`;
+  // 捲到最底
+  const win = $("chatWindow");
+  if (win) win.scrollTop = win.scrollHeight;
+
+  $("spkMe").onclick = () => { chatSpeaker = "me"; renderChat(id); };
+  $("spkIdol").onclick = () => { chatSpeaker = "idol"; renderChat(id); };
+  const send = () => {
+    const t = $("chatInput").value.trim();
+    if (!t) return;
+    a.chat.push({ who: chatSpeaker, text: t, time: Date.now() });
+    if (a.chat.length > 200) a.chat = a.chat.slice(-200);
+    saveAffection();
+    sfx.tap();
+    renderChat(id);
+  };
+  $("chatSend").onclick = send;
+  $("chatInput").addEventListener("keydown", e => { if (e.key === "Enter") send(); });
+  $("chatPoke").onclick = () => {
+    a.chat.push({ who: "idol", text: randomIdolMsg(id), time: Date.now() });
+    if (a.chat.length > 200) a.chat = a.chat.slice(-200);
+    saveAffection();
+    sfx.correct();
+    renderChat(id);
+  };
+  $("chatBack").onclick = openMsgList;
 }
 
 function openAffection(id, fromPick) {
