@@ -117,6 +117,19 @@
     transition:transform .18s;
   }
   .idol-card:hover{transform:translateY(-4px);}
+  .idol-speak-btn{
+    width:100%;margin-top:10px;padding:8px;border:none;border-radius:12px;cursor:pointer;
+    font-family:inherit;font-weight:800;font-size:.85rem;color:#fff;
+    background:linear-gradient(135deg,#ff9ec4,#a87aff);
+  }
+  .idol-speak-btn:hover{filter:brightness(1.05);}
+  .idol-speak-bubble{
+    margin-top:8px;background:#fff4fb;border-radius:14px 14px 14px 4px;
+    padding:0 12px;font-weight:700;font-size:.9rem;color:var(--accent-2);
+    max-height:0;opacity:0;overflow:hidden;transition:.3s;
+  }
+  body.dark .idol-speak-bubble{background:#2e2236;}
+  .idol-speak-bubble.show{max-height:100px;opacity:1;padding:10px 12px;animation:judgePop .4s ease;}
   .idol-card.pinned{outline:2.5px solid var(--gold);outline-offset:-2px;}
   .pin-badge{
     position:absolute;top:-2px;left:8px;z-index:3;font-size:1.1rem;
@@ -2111,7 +2124,9 @@ function renderCards() {
         <div class="cal-unit${onPhoto}">天</div>
       </div>
       <div class="cal-date">起始日:${idol.startDate.replaceAll("-","/")} ${weekdayOf(idol.startDate)}</div>
-      <div class="cal-stats">📔 寫給他 ${myPosts.length} 篇.共 ${totalWords} 個字</div>`;
+      <div class="cal-stats">📔 寫給他 ${myPosts.length} 篇.共 ${totalWords} 個字</div>
+      <button class="idol-speak-btn" data-speak="${idol.id}">💬 點我說句話</button>
+      <div class="idol-speak-bubble" id="speak-${idol.id}"></div>`;
     grid.appendChild(card);
   });
 
@@ -2120,6 +2135,19 @@ function renderCards() {
   add.innerHTML = `<span class="plus">＋</span>新增一位偶像`;
   add.onclick = () => openModal();
   grid.appendChild(add);
+
+  grid.querySelectorAll("[data-speak]").forEach(b => b.onclick = e => {
+    e.stopPropagation();
+    const idol = idols.find(i => i.id === b.dataset.speak);
+    const bubble = $("speak-" + b.dataset.speak);
+    if (!bubble) return;
+    const line = IDOL_LINES[Math.floor(Math.random() * IDOL_LINES.length)];
+    bubble.textContent = `${idol.emoji || "💖"} ${line}`;
+    bubble.classList.remove("show");
+    void bubble.offsetWidth;
+    bubble.classList.add("show");
+    sfx.tap && sfx.tap();
+  });
 
   grid.querySelectorAll("[data-menu]").forEach(b => b.onclick = e => {
     e.stopPropagation();
@@ -4833,6 +4861,19 @@ function spinWheel(id) {
 }
 
 /* ================== 💌 偶像回送驚喜 ================== */
+/* 🎤 偶像語音包台詞(甜的+搞笑的+元氣的,隨機跳) */
+const IDOL_LINES = [
+  // 甜的 🥰
+  "我最愛你了啦 🥰", "想你想到睡不著 💭", "有你在我好幸福 💕", "你是我最重要的人 💗",
+  "今天也好想見到你 🥺", "謝謝你一直喜歡我 🥹", "你笑起來最好看了 😊", "我心裡都是你耶 💞",
+  // 搞笑的 😆
+  "欸你又來看我囉?😏", "我可是很忙的耶(才怪)😆", "你是不是又在偷看我 👀", "哼,今天才來找我 😤(開玩笑的啦)",
+  "我今天美得不像話對吧 💅", "再不理我我要哭給你看囉 😭(假的)", "你的眼睛離不開我吧 😎", "我會偷偷把你藏進口袋 🌚",
+  // 元氣的 💪
+  "今天也要加油喔!💪", "有你應援我超強的!🔥", "我們一起閃閃發光吧 ✨", "衝啊!夢想就在前面 🚀",
+  "嘿!打起精神來 😤", "今天也是充滿元氣的一天 ☀️", "跟著我一起喊:加油!📣", "我會努力變更好給你看 🌟"
+];
+
 const SURPRISE_MSGS = [
   "謝謝你一直陪著我,這個給你 🥹",
   "今天想到你,想說謝謝你的支持 💕",
