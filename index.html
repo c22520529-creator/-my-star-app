@@ -4617,8 +4617,7 @@ function affOf(id) {
   if (!affection[id].bank) affection[id].bank = { saved: 0, lastInterest: "" }; // 銀行 {存款, 上次結算利息的日期}
   if (!affection[id].lastSurprise) affection[id].lastSurprise = ""; // 偶像上次回送驚喜的日期(一天最多一次)
   if (!affection[id].chat) affection[id].chat = []; // 聊天訊息 [{who:"idol"/"me", text, time}]
-  if (affection[id].craving === undefined) affection[id].craving = null; // 她現在想要的東西 {type, fid}
-  if (affection[id].allowance === undefined) affection[id].allowance = 0; // 偶像的零用錢(自己花、回送禮物)
+  if (affection[id].craving === undefined) affection[id].craving = null; // (保留欄位)
   // 換日就清空今天的任務勾選 + 互動紀錄 + 猜拳場數
   const t = todayStr();
   if (affection[id].tasks.date !== t) affection[id].tasks = { date: t, done: [] };
@@ -4671,49 +4670,26 @@ function idolSurprise(id) {
   const photo = (idol.gallery && idol.gallery[0]) || idol.photoData || idol.photoUrl;
   const msg = SURPRISE_MSGS[Math.floor(Math.random() * SURPRISE_MSGS.length)];
 
-  // 余悸有多少錢能花(零用錢 + 存款)
-  const her = a.allowance + a.bank.saved;
-  // 從余悸的錢扣 cost:先扣零用錢,不夠動存款
-  const paySurprise = (cost) => {
-    let left = cost;
-    const fromAllow = Math.min(a.allowance, left);
-    a.allowance -= fromAllow; left -= fromAllow;
-    if (left > 0) a.bank.saved = Math.max(0, a.bank.saved - left);
-  };
-
-  // 隨機決定送什麼:錢 / 食物 / 禮物 / 好感度(好感度免費,其他要花她的錢)
-  let kind = ["money", "food", "gift", "love"][Math.floor(Math.random() * 4)];
+  // 隨機決定送什麼:錢 / 食物 / 禮物 / 好感度(都是她的心意,不扣她的錢)
+  const kind = ["money", "food", "gift", "love"][Math.floor(Math.random() * 4)];
   let bigIcon = "💝", rewardText = "";
 
   if (kind === "money") {
-    // 送你錢:她有多少給多少(最多100),從她的錢扣
-    const money = Math.min([30, 50, 50, 80, 100][Math.floor(Math.random() * 5)], her);
-    paySurprise(money);
+    const money = [30, 50, 50, 80, 100][Math.floor(Math.random() * 5)];
     a.coins += money;
     bigIcon = "💰";
     rewardText = `💰 +${money} 元`;
   } else if (kind === "food") {
     const f = FOODS[Math.floor(Math.random() * FOODS.length)];
-    if (f.price > her) { // 買不起就改送好感度
-      kind = "love";
-    } else {
-      paySurprise(f.price);
-      a.bag[f.id] = (a.bag[f.id] || 0) + 1;
-      bigIcon = f.icon;
-      rewardText = `${f.icon} ${f.name} ×1（放進背包）`;
-    }
+    a.bag[f.id] = (a.bag[f.id] || 0) + 1;
+    bigIcon = f.icon;
+    rewardText = `${f.icon} ${f.name} ×1（放進背包）`;
   } else if (kind === "gift") {
     const g = GIFTS[Math.floor(Math.random() * GIFTS.length)];
-    if (g.price > her) { // 買不起就改送好感度
-      kind = "love";
-    } else {
-      paySurprise(g.price);
-      a.giftBag[g.id] = (a.giftBag[g.id] || 0) + 1;
-      bigIcon = g.icon;
-      rewardText = `${g.icon} ${g.name} ×1（放進禮物背包）`;
-    }
-  }
-  if (kind === "love") { // 好感度免費(她的心意,不花錢)
+    a.giftBag[g.id] = (a.giftBag[g.id] || 0) + 1;
+    bigIcon = g.icon;
+    rewardText = `${g.icon} ${g.name} ×1（放進禮物背包）`;
+  } else { // love
     const love = [5, 8, 10, 12][Math.floor(Math.random() * 4)];
     a.points += love;
     bigIcon = "💕";
@@ -4771,9 +4747,8 @@ function openBank(id) {
     <div class="selfie-head">🏦 ${esc(idol.name)} 的銀行</div>
     <div class="bank-card">
       <div class="bank-row"><span>💰 錢包</span><b id="bankWallet">${a.coins}</b> 元</div>
-      <div class="bank-row"><span>🪙 ${esc(idol.name)} 的零用錢</span><b>${a.allowance}</b> 元</div>
       <div class="bank-row"><span>🏦 存款</span><b id="bankSaved">${a.bank.saved}</b> 元</div>
-      <div class="bank-note">每天利息 5%（每天最多 +100 元）· 零用錢和存款是 ${esc(idol.name)} 送你禮物的錢</div>
+      <div class="bank-note">每天利息 5%（每天最多 +100 元）</div>
       ${gained > 0 ? `<div class="bank-gained">🎉 這次領到利息 +${gained} 元!</div>` : ""}
     </div>
     <div class="bank-input-row">
@@ -4829,8 +4804,7 @@ function setupAffection() {
   // 選一位偶像來養
   area.innerHTML = `
     <div class="mem-pick-title">要養誰的好感度?💌</div>
-    <div class="aff-pick" id="affPick"></div>
-    <button class="phone-open-btn" id="phoneOpenBtn">📱 打開手機</button>`;
+    <div class="aff-pick" id="affPick"></div>`;
   const pick = $("affPick");
   list.forEach(idol => {
     const a = affOf(idol.id);
@@ -4845,272 +4819,15 @@ function setupAffection() {
     btn.onclick = () => openAffection(idol.id, true);
     pick.appendChild(btn);
   });
-  $("phoneOpenBtn").onclick = openPhone;
 }
 
-/* ================== 📱 手機 ================== */
-function openPhone() {
-  const area = $("affectionArea");
-  area.innerHTML = `
-    <div class="phone-frame">
-      <div class="phone-top">
-        <span class="phone-time">📱 我的手機</span>
-      </div>
-      <div class="phone-home">
-        <button class="phone-app" id="phoneMsg">
-          <span class="phone-app-icon">💬</span>
-          <span class="phone-app-name">訊息</span>
-        </button>
-        <button class="phone-app" id="phoneTransfer">
-          <span class="phone-app-icon">💸</span>
-          <span class="phone-app-name">轉帳</span>
-        </button>
-      </div>
-      <button class="phone-home-btn" id="phoneBack">🏠 回主畫面</button>
-    </div>`;
-  $("phoneMsg").onclick = openMsgList;
-  $("phoneTransfer").onclick = openTransferList;
-  $("phoneBack").onclick = setupAffection;
-}
-
-/* ================== 💬 手機訊息 ================== */
-const PHONE_GIFT_ID = "phone"; // 送過這個禮物才解鎖訊息
-
-// 偶像有沒有手機(有沒有送過手機禮物)
-function hasPhone(id) {
-  const a = affOf(id);
-  return a.gaveGifts && a.gaveGifts.includes(PHONE_GIFT_ID);
-}
-
-// 訊息列表:顯示哪些偶像能聊天
-function openMsgList() {
-  const area = $("affectionArea");
-  const list = gameIdols();
-  let rows = "";
-  list.forEach(idol => {
-    const photo = (idol.gallery && idol.gallery[0]) || idol.photoData || idol.photoUrl;
-    const can = hasPhone(idol.id);
-    const a = affOf(idol.id);
-    const last = a.chat.length ? a.chat[a.chat.length - 1].text : (can ? "點進來聊天吧 💬" : "送他手機才能聊天 🔒");
-    rows += `<button class="msg-row${can ? "" : " locked"}" data-msg="${idol.id}">
-      ${photo ? `<img class="msg-avatar" src="${esc(photo)}">` : `<span class="msg-avatar-emoji">${esc(idol.emoji || "💖")}</span>`}
-      <span class="msg-row-info">
-        <b>${esc(idol.name)} ${can ? "" : "🔒"}</b>
-        <small>${esc(last.length > 16 ? last.slice(0, 16) + "…" : last)}</small>
-      </span>
-    </button>`;
-  });
-  area.innerHTML = `
-    <div class="phone-frame">
-      <div class="phone-top"><span class="phone-time">💬 訊息</span></div>
-      <div class="msg-list">${rows || `<div class="empty" style="color:#fff">還沒有偶像</div>`}</div>
-      <button class="phone-home-btn" id="msgListBack">← 回手機</button>
-    </div>`;
-  area.querySelectorAll("[data-msg]").forEach(b => {
-    b.onclick = () => {
-      const iid = b.dataset.msg;
-      if (!hasPhone(iid)) { toast("要先送他一支 📱 手機,才能跟他聊天喔!"); return; }
-      openChat(iid);
-    };
-  });
-  $("msgListBack").onclick = openPhone;
-}
-
-// 偶像自動傳的訊息(隨機,生動)
-const CHAT_AUTO = {
-  cold:    ["最近天氣好冷,好想要棉被 🛏️", "冷冷的,抱抱我啦 🥶", "想窩在暖暖的被子裡 🥺"],
-  bored:   ["好無聊喔~", "你什麼時候要來看我?🥹", "在做什麼呢?想你了 💭", "陪我聊天啦 😆"],
-  miss:    ["今天有想我嗎?💕", "我很想你欸 🥺", "好想見到你喔 🥰"],
-  happy:   ["今天心情超好的!😄", "跟你聊天好開心 🎶", "你是我最棒的粉絲 ✨"],
-  thanks:  ["謝謝你一直支持我 🥹", "有你真好 💗", "謝謝你對我這麼好 🥰"]
-};
-// 萬用句:接什麼都不奇怪,不會「答非所問」
-const CHAT_FILLER = ["嗯嗯 😊", "真的嗎?😄", "好呀 💕", "我知道了~", "謝謝你跟我說 🥰", "哈哈這樣啊 😆", "好喔 💗", "聽你說話好開心 ✨", "嗯嗯,然後呢?😊"];
-
-// 偶像主動講的話(包含:有機會說「想吃某個食物」並記住)
-function idolSpeak(id) {
-  const a = affOf(id);
-  // 如果現在已經有想要的東西還沒滿足,就提醒一下
-  if (a.craving && a.craving.type === "food") {
-    const f = foodById(a.craving.fid);
-    if (f) return `我還想吃 ${f.icon} ${f.name} 啦~你會餵我嗎?🥺`;
-  }
-  // 30% 機率:說想吃某個食物(從全部食物隨機挑,並記住)
-  if (Math.random() < 0.3) {
-    const f = FOODS[Math.floor(Math.random() * FOODS.length)];
-    a.craving = { type: "food", fid: f.id };
-    saveAffection();
-    return `我好想吃 ${f.icon} ${f.name} 喔~你可以餵我嗎?😋`;
-  }
-  // 否則:隨機講閒聊 / 謝謝禮物
-  if (a.gaveGifts && a.gaveGifts.length > 0 && Math.random() < 0.3) {
-    const gid = a.gaveGifts[Math.floor(Math.random() * a.gaveGifts.length)];
-    const g = giftById(gid);
-    if (g) return `謝謝你送的 ${g.icon} ${g.name},我好喜歡!🥰`;
-  }
-  const pools = Object.values(CHAT_AUTO);
-  const pool = pools[Math.floor(Math.random() * pools.length)];
-  return pool[Math.floor(Math.random() * pool.length)];
-}
-
-// 回應你說的話(萬用句,不會亂回);留 randomIdolMsg 名稱給打招呼用
-function idolReply(id) {
-  return CHAT_FILLER[Math.floor(Math.random() * CHAT_FILLER.length)];
-}
-function randomIdolMsg(id) { return idolSpeak(id); }
-
-let chatSpeaker = "me"; // 自訂時,目前是誰在說
-function openChat(id) {
-  const a = affOf(id);
-  // 打開聊天時,偶像會「主動開口」:第一次一定講,之後有 60% 機率主動先說一句
-  // (但你打字之後她不會自動回,要她回請按「👉 戳他」)
-  if (a.chat.length === 0 || a.chat[a.chat.length - 1].who === "me" || Math.random() < 0.6) {
-    a.chat.push({ who: "idol", text: idolSpeak(id), time: Date.now() });
-    if (a.chat.length > 200) a.chat = a.chat.slice(-200);
-    saveAffection();
-  }
-  renderChat(id);
-}
-
-function renderChat(id) {
-  const idol = idols.find(i => i.id === id);
-  const a = affOf(id);
-  const photo = (idol.gallery && idol.gallery[0]) || idol.photoData || idol.photoUrl;
-  let bubbles = a.chat.map(msg => {
-    if (msg.who === "idol") {
-      return `<div class="chat-line left">
-        ${photo ? `<img class="chat-avatar" src="${esc(photo)}">` : `<span class="chat-avatar-emoji">${esc(idol.emoji || "💖")}</span>`}
-        <div class="chat-bubble idol">${esc(msg.text)}</div>
-      </div>`;
-    }
-    return `<div class="chat-line right"><div class="chat-bubble me">${esc(msg.text)}</div></div>`;
-  }).join("");
-  const area = $("affectionArea");
-  area.innerHTML = `
-    <div class="phone-frame">
-      <div class="phone-top"><span class="phone-time">💬 ${esc(idol.emoji || "")} ${esc(idol.name)}</span></div>
-      <div class="chat-window" id="chatWindow">${bubbles || `<div class="chat-empty">開始聊天吧 💬</div>`}</div>
-      <div class="chat-speaker-row">
-        <span class="chat-speaker-label">這句是誰說:</span>
-        <button class="chat-speaker-btn ${chatSpeaker === "me" ? "on" : ""}" id="spkMe">我</button>
-        <button class="chat-speaker-btn ${chatSpeaker === "idol" ? "on" : ""}" id="spkIdol">${esc(idol.name)}</button>
-      </div>
-      <div class="chat-speaker-row">
-        <span class="chat-speaker-label" style="font-size:.72rem;opacity:.85">💡 切「${esc(idol.name)}」自己幫她打 · 想讓她主動說話按「👉 戳他」</span>
-      </div>
-      <div class="chat-input-row">
-        <input type="text" id="chatInput" placeholder="輸入訊息...">
-        <button class="chat-send" id="chatSend">送出</button>
-      </div>
-      <div class="draw-btns" style="margin-top:8px">
-        <button class="ghost-btn" id="chatPoke">👉 戳他(讓他說話)</button>
-        <button class="ghost-btn" id="chatBack">← 回訊息</button>
-      </div>
-    </div>`;
-  // 捲到最底
-  const win = $("chatWindow");
-  if (win) win.scrollTop = win.scrollHeight;
-
-  $("spkMe").onclick = () => { chatSpeaker = "me"; renderChat(id); };
-  $("spkIdol").onclick = () => { chatSpeaker = "idol"; renderChat(id); };
-  const send = () => {
-    const t = $("chatInput").value.trim();
-    if (!t) return;
-    const speaker = chatSpeaker;
-    a.chat.push({ who: speaker, text: t, time: Date.now() });
-    if (a.chat.length > 200) a.chat = a.chat.slice(-200);
-    saveAffection();
-    sfx.tap();
-    renderChat(id);
-    // 你說完她不會自動回,要她說話請按「👉 戳他」
-  };
-  $("chatSend").onclick = send;
-  $("chatInput").addEventListener("keydown", e => { if (e.key === "Enter") send(); });
-  $("chatPoke").onclick = () => {
-    a.chat.push({ who: "idol", text: randomIdolMsg(id), time: Date.now() });
-    if (a.chat.length > 200) a.chat = a.chat.slice(-200);
-    saveAffection();
-    sfx.correct();
-    renderChat(id);
-  };
-  $("chatBack").onclick = openMsgList;
-}
-
-/* ================== 💸 轉帳(發零用錢給偶像) ================== */
-function openTransferList() {
-  const area = $("affectionArea");
-  const list = gameIdols();
-  let rows = "";
-  list.forEach(idol => {
-    const a = affOf(idol.id);
-    const photo = (idol.gallery && idol.gallery[0]) || idol.photoData || idol.photoUrl;
-    rows += `<button class="msg-row" data-tr="${idol.id}">
-      ${photo ? `<img class="msg-avatar" src="${esc(photo)}">` : `<span class="msg-avatar-emoji">${esc(idol.emoji || "💖")}</span>`}
-      <span class="msg-row-info">
-        <b>${esc(idol.name)}</b>
-        <small>💰 錢包 ${a.coins} 元　🪙 零用錢 ${a.allowance} 元</small>
-      </span>
-    </button>`;
-  });
-  area.innerHTML = `
-    <div class="phone-frame">
-      <div class="phone-top"><span class="phone-time">💸 轉帳</span></div>
-      <div class="transfer-tip">把錢包的錢轉給偶像當零用錢,他就能自己買東西、回送你禮物 🎁</div>
-      <div class="msg-list">${rows}</div>
-      <button class="phone-home-btn" id="trListBack">← 回手機</button>
-    </div>`;
-  area.querySelectorAll("[data-tr]").forEach(b => b.onclick = () => openTransfer(b.dataset.tr));
-  $("trListBack").onclick = openPhone;
-}
-
-function openTransfer(id) {
-  const idol = idols.find(i => i.id === id);
-  const a = affOf(id);
-  const area = $("affectionArea");
-  area.innerHTML = `
-    <div class="phone-frame">
-      <div class="phone-top"><span class="phone-time">💸 轉給 ${esc(idol.emoji || "")} ${esc(idol.name)}</span></div>
-      <div class="transfer-card">
-        <div class="bank-row"><span>💰 你的錢包</span><b id="trWallet">${a.coins}</b> 元</div>
-        <div class="bank-row"><span>🪙 ${esc(idol.name)} 的零用錢</span><b id="trAllow">${a.allowance}</b> 元</div>
-      </div>
-      <div class="bank-input-row">
-        <input type="number" id="trAmount" placeholder="輸入要轉的金額" min="1">
-      </div>
-      <div class="draw-btns">
-        <button class="chat-send" id="trSend" style="flex:1">💸 轉帳</button>
-      </div>
-      <div class="draw-btns" style="margin-top:8px">
-        <button class="ghost-btn" id="trBack">← 回轉帳</button>
-      </div>
-    </div>`;
-  $("trSend").onclick = () => {
-    const v = Math.max(0, parseInt($("trAmount").value, 10) || 0);
-    if (v <= 0) { toast("輸入要轉的金額 💰"); return; }
-    if (v > a.coins) { toast("錢包沒這麼多錢喔 😅"); return; }
-    a.coins -= v;
-    a.allowance += v;
-    saveAffection();
-    sfx.correct();
-    toast(`轉了 ${v} 元零用錢給 ${esc(idol.name)} 💸`);
-    // 偶像在聊天裡道謝(如果有手機)
-    if (hasPhone(id)) {
-      a.chat.push({ who: "idol", text: `謝謝你給我 ${v} 元零用錢!我會好好用的 🥰`, time: Date.now() });
-      if (a.chat.length > 200) a.chat = a.chat.slice(-200);
-      saveAffection();
-    }
-    openTransfer(id);
-  };
-  $("trBack").onclick = openTransferList;
-}
 
 function openAffection(id, fromPick) {
   const idol = idols.find(i => i.id === id);
   const a = affOf(id);
   const today = todayStr();
   // 💌 偶像偶爾回送驚喜:只在「從選單進來」時、一天最多一次、機率 8%
-  if (fromPick && a.lastSurprise !== today && Math.random() < 0.08
-      && (a.allowance + a.bank.saved) > 0) { // 余悸要有錢(零用錢或存款)才送得起
+  if (fromPick && a.lastSurprise !== today && Math.random() < 0.08) {
     a.lastSurprise = today;
     idolSurprise(id);
     return; // 先顯示驚喜畫面,關掉後再進好感度頁
@@ -5175,12 +4892,7 @@ function openAffection(id, fromPick) {
       </div>
     </details>
 
-    <button class="ghost-btn" id="affBackPick" style="margin-top:16px;width:100%">← 換一位養</button>
-
-    <div class="phone-launcher" id="phoneLauncher">
-      <div class="phone-launcher-icon">📱</div>
-      <div class="phone-launcher-label">${esc(idol.name)} 的手機</div>
-    </div>`;
+    <button class="ghost-btn" id="affBackPick" style="margin-top:16px;width:100%">← 換一位養</button>`;
 
   $("affDaily").onclick = () => {
     a.points += 5;
@@ -5190,7 +4902,6 @@ function openAffection(id, fromPick) {
     toast("應援 +5 好感度 💕");
   };
   $("affBackPick").onclick = setupAffection;
-  $("phoneLauncher").onclick = () => openPhone(id);
   $("affSetBtn").onclick = () => {
     const v = Math.max(0, parseInt($("affSetInput").value, 10) || 0);
     a.points = v;
@@ -5537,24 +5248,13 @@ function feedFood(id, fid, btnEl) {
   if (a.bag[fid] <= 0) delete a.bag[fid];
   a.points += f.pts; // 餵了就加好感度(每次都加)
 
-  // 💬 如果這正是她在聊天裡說想吃的食物 → 在聊天裡道謝,並清掉願望
-  let satisfied = false;
-  if (a.craving && a.craving.type === "food" && a.craving.fid === fid) {
-    a.craving = null;
-    satisfied = true;
-    const thanks = ["謝謝你餵我吃 " + f.icon + "!真的好好吃 😋", "嗯~ " + f.icon + " 好甜好好吃!謝謝你 🥰", "你最好了!" + f.icon + " 我超喜歡的 💕", "吃到 " + f.icon + " 好幸福~謝謝你 🥹"];
-    a.chat.push({ who: "idol", text: thanks[Math.floor(Math.random() * thanks.length)], time: Date.now() });
-    if (a.chat.length > 200) a.chat = a.chat.slice(-200);
-  }
   saveAffection();
 
   // 🍽️ 食物從按鈕飛到偶像嘴邊的動畫
   flyFoodToMouth(f.icon, btnEl, () => {
     sfx.correct();
     chewIdol(); // 偶像吃東西的咀嚼動畫
-    toast(satisfied
-      ? `${f.icon} 這正是 ${esc(idols.find(i=>i.id===id).name)} 想吃的!她超開心 +${f.pts} 💕`
-      : `${f.icon} 好好吃!${esc(idols.find(i=>i.id===id).name)} 好感度 +${f.pts} 💕`);
+    toast(`${f.icon} 好好吃!${esc(idols.find(i=>i.id===id).name)} 好感度 +${f.pts} 💕`);
     openFeed(id); // 重畫(更新背包數量)
   });
 }
