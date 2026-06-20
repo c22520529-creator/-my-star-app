@@ -4669,9 +4669,32 @@ function idolSurprise(id) {
   const idol = idols.find(i => i.id === id);
   const a = affOf(id);
   const photo = (idol.gallery && idol.gallery[0]) || idol.photoData || idol.photoUrl;
-  const money = [30, 50, 50, 80, 100][Math.floor(Math.random() * 5)]; // 隨機一筆錢
   const msg = SURPRISE_MSGS[Math.floor(Math.random() * SURPRISE_MSGS.length)];
-  a.coins += money;
+
+  // 隨機決定送什麼:錢 / 食物 / 禮物 / 好感度
+  const kind = ["money", "food", "gift", "love"][Math.floor(Math.random() * 4)];
+  let bigIcon = "💝", rewardText = "";
+  if (kind === "money") {
+    const money = [30, 50, 50, 80, 100][Math.floor(Math.random() * 5)];
+    a.coins += money;
+    bigIcon = "💰";
+    rewardText = `💰 +${money} 元`;
+  } else if (kind === "food") {
+    const f = FOODS[Math.floor(Math.random() * FOODS.length)];
+    a.bag[f.id] = (a.bag[f.id] || 0) + 1;
+    bigIcon = f.icon;
+    rewardText = `${f.icon} ${f.name} ×1（放進背包）`;
+  } else if (kind === "gift") {
+    const g = GIFTS[Math.floor(Math.random() * GIFTS.length)];
+    a.giftBag[g.id] = (a.giftBag[g.id] || 0) + 1;
+    bigIcon = g.icon;
+    rewardText = `${g.icon} ${g.name} ×1（放進禮物背包）`;
+  } else { // love
+    const love = [5, 8, 10, 12][Math.floor(Math.random() * 4)];
+    a.points += love;
+    bigIcon = "💕";
+    rewardText = `💕 好感度 +${love}`;
+  }
   saveAffection();
   sfx.win();
   startConfetti();
@@ -4681,11 +4704,11 @@ function idolSurprise(id) {
       <div class="surprise-badge">💌 ${esc(idol.name)} 送你驚喜!</div>
       <div class="gift-react-stage">
         ${photo ? `<img class="gift-react-photo" src="${esc(photo)}" alt="">` : `<div class="gift-react-emoji">${esc(idol.emoji || "💖")}</div>`}
-        <div class="gift-react-item">💝</div>
+        <div class="gift-react-item">${bigIcon}</div>
       </div>
       <div class="surprise-letter">
         <div class="surprise-letter-text">「${esc(msg)}」</div>
-        <div class="surprise-letter-money">💰 +${money} 元</div>
+        <div class="surprise-letter-money">${esc(rewardText)}</div>
       </div>
       <button class="primary-btn" id="surpriseOk" style="margin-top:16px">收下 🥰</button>
     </div>`;
