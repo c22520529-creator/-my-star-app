@@ -1002,6 +1002,16 @@
     padding:10px 16px;border-radius:12px;border:none;cursor:pointer;font-family:inherit;
     font-weight:800;background:var(--accent-2);color:#fff;
   }
+
+  /* ---------- 💸 轉帳 ---------- */
+  .transfer-tip{
+    background:rgba(255,255,255,.9);border-radius:12px;padding:10px 12px;
+    font-size:.82rem;color:var(--ink-soft);margin-bottom:12px;line-height:1.5;
+  }
+  .transfer-card{
+    background:rgba(255,255,255,.95);border-radius:16px;padding:16px 18px;margin-bottom:4px;
+  }
+  .transfer-card .bank-row{color:var(--ink);}
   .aff-inter{
     display:flex;justify-content:space-between;align-items:center;
     background:var(--card);border:2px solid #ffd9ec;border-radius:14px;
@@ -4608,6 +4618,7 @@ function affOf(id) {
   if (!affection[id].lastSurprise) affection[id].lastSurprise = ""; // 偶像上次回送驚喜的日期(一天最多一次)
   if (!affection[id].chat) affection[id].chat = []; // 聊天訊息 [{who:"idol"/"me", text, time}]
   if (affection[id].craving === undefined) affection[id].craving = null; // 她現在想要的東西 {type, fid}
+  if (affection[id].allowance === undefined) affection[id].allowance = 0; // 偶像的零用錢(自己花、回送禮物)
   // 換日就清空今天的任務勾選 + 互動紀錄 + 猜拳場數
   const t = todayStr();
   if (affection[id].tasks.date !== t) affection[id].tasks = { date: t, done: [] };
@@ -4810,7 +4821,7 @@ function openPhone() {
       <button class="phone-home-btn" id="phoneBack">🏠 回主畫面</button>
     </div>`;
   $("phoneMsg").onclick = openMsgList;
-  $("phoneTransfer").onclick = () => toast("💸 轉帳功能馬上就來囉!");
+  $("phoneTransfer").onclick = openTransferList;
   $("phoneBack").onclick = setupAffection;
 }
 
@@ -4975,6 +4986,74 @@ function renderChat(id) {
     renderChat(id);
   };
   $("chatBack").onclick = openMsgList;
+}
+
+/* ================== 💸 轉帳(發零用錢給偶像) ================== */
+function openTransferList() {
+  const area = $("affectionArea");
+  const list = gameIdols();
+  let rows = "";
+  list.forEach(idol => {
+    const a = affOf(idol.id);
+    const photo = (idol.gallery && idol.gallery[0]) || idol.photoData || idol.photoUrl;
+    rows += `<button class="msg-row" data-tr="${idol.id}">
+      ${photo ? `<img class="msg-avatar" src="${esc(photo)}">` : `<span class="msg-avatar-emoji">${esc(idol.emoji || "💖")}</span>`}
+      <span class="msg-row-info">
+        <b>${esc(idol.name)}</b>
+        <small>💰 錢包 ${a.coins} 元　🪙 零用錢 ${a.allowance} 元</small>
+      </span>
+    </button>`;
+  });
+  area.innerHTML = `
+    <div class="phone-frame">
+      <div class="phone-top"><span class="phone-time">💸 轉帳</span></div>
+      <div class="transfer-tip">把錢包的錢轉給偶像當零用錢,他就能自己買東西、回送你禮物 🎁</div>
+      <div class="msg-list">${rows}</div>
+      <button class="phone-home-btn" id="trListBack">← 回手機</button>
+    </div>`;
+  area.querySelectorAll("[data-tr]").forEach(b => b.onclick = () => openTransfer(b.dataset.tr));
+  $("trListBack").onclick = openPhone;
+}
+
+function openTransfer(id) {
+  const idol = idols.find(i => i.id === id);
+  const a = affOf(id);
+  const area = $("affectionArea");
+  area.innerHTML = `
+    <div class="phone-frame">
+      <div class="phone-top"><span class="phone-time">💸 轉給 ${esc(idol.emoji || "")} ${esc(idol.name)}</span></div>
+      <div class="transfer-card">
+        <div class="bank-row"><span>💰 你的錢包</span><b id="trWallet">${a.coins}</b> 元</div>
+        <div class="bank-row"><span>🪙 ${esc(idol.name)} 的零用錢</span><b id="trAllow">${a.allowance}</b> 元</div>
+      </div>
+      <div class="bank-input-row">
+        <input type="number" id="trAmount" placeholder="輸入要轉的金額" min="1">
+      </div>
+      <div class="draw-btns">
+        <button class="chat-send" id="trSend" style="flex:1">💸 轉帳</button>
+      </div>
+      <div class="draw-btns" style="margin-top:8px">
+        <button class="ghost-btn" id="trBack">← 回轉帳</button>
+      </div>
+    </div>`;
+  $("trSend").onclick = () => {
+    const v = Math.max(0, parseInt($("trAmount").value, 10) || 0);
+    if (v <= 0) { toast("輸入要轉的金額 💰"); return; }
+    if (v > a.coins) { toast("錢包沒這麼多錢喔 😅"); return; }
+    a.coins -= v;
+    a.allowance += v;
+    saveAffection();
+    sfx.correct();
+    toast(`轉了 ${v} 元零用錢給 ${esc(idol.name)} 💸`);
+    // 偶像在聊天裡道謝(如果有手機)
+    if (hasPhone(id)) {
+      a.chat.push({ who: "idol", text: `謝謝你給我 ${v} 元零用錢!我會好好用的 🥰`, time: Date.now() });
+      if (a.chat.length > 200) a.chat = a.chat.slice(-200);
+      saveAffection();
+    }
+    openTransfer(id);
+  };
+  $("trBack").onclick = openTransferList;
 }
 
 function openAffection(id, fromPick) {
