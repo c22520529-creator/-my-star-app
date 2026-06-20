@@ -720,6 +720,11 @@
   .pet-bar{flex:1;height:14px;background:#eee;border-radius:999px;overflow:hidden;}
   body.dark .pet-bar{background:#3a3550;}
   .pet-bar-fill{height:100%;border-radius:999px;transition:width .3s;}
+  .pet-reward-tip{
+    max-width:300px;margin:14px auto 0;background:#fff3d6;color:#a6792e;
+    border-radius:10px;padding:8px 12px;font-size:.8rem;font-weight:700;line-height:1.5;text-align:center;
+  }
+  body.dark .pet-reward-tip{background:#3a3320;color:#ffd98a;}
 
   /* ---------- 一起看星星 ---------- */
   .star-sky{
@@ -6022,6 +6027,7 @@ function petCare(id) {
       <button class="ghost-btn" id="petPat">🤚 摸摸牠</button>
       <button class="ghost-btn" id="petPlay">🎾 陪牠玩</button>
     </div>
+    <div class="pet-reward-tip">🎁 把寵物的肚子和心情都養到 70 以上,按「照顧好了」牠每天會回送你禮物!</div>
     <button class="primary-btn" id="petDone" style="width:100%;margin-top:10px">✅ 照顧好了(加好感度)</button>
     <div class="draw-btns" style="margin-top:8px">
       <button class="ghost-btn" id="petChange">🔄 換寵物</button>
@@ -6074,10 +6080,25 @@ function finishPet(id) {
     a.inter.done.push("pet");
     a.points += it.pts;
     added = it.pts;
-    saveAffection();
   }
+  // 🐾 寵物回饋:照顧得好(肚子≥70 且 心情≥70),每天回饋一次
+  const p = a.pet;
+  const today = todayStr();
+  let rewardText = "";
+  if (p && p.full >= 70 && p.happy >= 70 && p.lastReward !== today) {
+    p.lastReward = today;
+    const kind = ["money", "love", "food", "gift"][Math.floor(Math.random() * 4)];
+    if (kind === "money") { const v = [20, 30, 50][Math.floor(Math.random() * 3)]; a.coins += v; rewardText = `${p.animal} 叼來 💰 +${v} 元給你!`; }
+    else if (kind === "love") { const v = [5, 8][Math.floor(Math.random() * 2)]; a.points += v; rewardText = `${p.animal} 蹭蹭你,好感度 +${v} 💕`; }
+    else if (kind === "food") { const f = FOODS[Math.floor(Math.random() * FOODS.length)]; a.bag[f.id] = (a.bag[f.id] || 0) + 1; rewardText = `${p.animal} 找到 ${f.icon} ${f.name} 送你!`; }
+    else { const g = GIFTS[Math.floor(Math.random() * GIFTS.length)]; a.giftBag[g.id] = (a.giftBag[g.id] || 0) + 1; rewardText = `${p.animal} 叼來 ${g.icon} ${g.name} 送你!`; }
+  }
+  saveAffection();
   sfx.win();
-  toast(added > 0 ? `${a.pet.animal} 被照顧得好好!${esc(idol.name)} 好感度 +${added} 🐾` : `${a.pet.animal} 好幸福 🐾`);
+  if (rewardText) startConfetti();
+  toast(rewardText
+    ? `🎁 ${rewardText}`
+    : (added > 0 ? `${p ? p.animal : "🐾"} 被照顧得好好!${esc(idol.name)} 好感度 +${added} 🐾` : `${p ? p.animal : "🐾"} 好幸福 🐾`));
   openAffection(id);
 }
 
