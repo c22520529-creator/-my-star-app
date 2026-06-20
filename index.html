@@ -4903,9 +4903,11 @@ function randomIdolMsg(id) { return idolSpeak(id); }
 let chatSpeaker = "me"; // 自訂時,目前是誰在說
 function openChat(id) {
   const a = affOf(id);
-  // 只有第一次進來(完全沒聊過)時,偶像先打個招呼
-  if (a.chat.length === 0) {
-    a.chat.push({ who: "idol", text: randomIdolMsg(id), time: Date.now() });
+  // 打開聊天時,偶像會「主動開口」:第一次一定講,之後有 60% 機率主動先說一句
+  // (但你打字之後她不會自動回,要她回請按「👉 戳他」)
+  if (a.chat.length === 0 || a.chat[a.chat.length - 1].who === "me" || Math.random() < 0.6) {
+    a.chat.push({ who: "idol", text: idolSpeak(id), time: Date.now() });
+    if (a.chat.length > 200) a.chat = a.chat.slice(-200);
     saveAffection();
   }
   renderChat(id);
@@ -4934,6 +4936,9 @@ function renderChat(id) {
         <button class="chat-speaker-btn ${chatSpeaker === "me" ? "on" : ""}" id="spkMe">我</button>
         <button class="chat-speaker-btn ${chatSpeaker === "idol" ? "on" : ""}" id="spkIdol">${esc(idol.name)}</button>
       </div>
+      <div class="chat-speaker-row">
+        <span class="chat-speaker-label" style="font-size:.72rem;opacity:.85">💡 切「${esc(idol.name)}」自己幫她打 · 想讓她主動說話按「👉 戳他」</span>
+      </div>
       <div class="chat-input-row">
         <input type="text" id="chatInput" placeholder="輸入訊息...">
         <button class="chat-send" id="chatSend">送出</button>
@@ -4958,17 +4963,7 @@ function renderChat(id) {
     saveAffection();
     sfx.tap();
     renderChat(id);
-    // 只有「你(我)」說完話,偶像才回一句(一來一往,不亂插話)
-    // 你切到「偶像」自己幫她打字時,她就不會再自動回(避免跳針)
-    if (speaker === "me") {
-      setTimeout(() => {
-        a.chat.push({ who: "idol", text: idolReply(id), time: Date.now() });
-        if (a.chat.length > 200) a.chat = a.chat.slice(-200);
-        saveAffection();
-        sfx.correct();
-        renderChat(id);
-      }, 700); // 等一下下再回,像真的在打字
-    }
+    // 你說完她不會自動回,要她說話請按「👉 戳他」
   };
   $("chatSend").onclick = send;
   $("chatInput").addEventListener("keydown", e => { if (e.key === "Enter") send(); });
