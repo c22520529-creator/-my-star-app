@@ -909,6 +909,14 @@
   @keyframes sparkleUp{0%{opacity:0;transform:translateY(20px) scale(.6);}40%{opacity:1;}100%{opacity:0;transform:translateY(-30px) scale(1.2);}}
   .giftbox-hint{text-align:center;font-weight:800;color:var(--accent-2);font-size:1.05rem;margin-top:6px;}
 
+  /* ---------- 🎡 幸運轉盤 ---------- */
+  .wheel-wrap{position:relative;width:240px;max-width:80%;margin:10px auto 0;}
+  .wheel-pointer{
+    position:absolute;top:-8px;left:50%;transform:translateX(-50%);
+    font-size:1.8rem;z-index:2;filter:drop-shadow(0 2px 3px rgba(0,0,0,.3));
+  }
+  .wheel-svg{width:100%;display:block;filter:drop-shadow(0 4px 12px rgba(0,0,0,.15));transform:rotate(0deg);}
+
   /* ---------- 偶像回送驚喜 ---------- */
   .surprise-badge{
     font-size:1.2rem;font-weight:900;color:var(--accent-2);margin-bottom:14px;
@@ -4615,6 +4623,7 @@ function affOf(id) {
   if (!affection[id].gaveGifts) affection[id].gaveGifts = []; // 送過的禮物id(他會收藏)
   if (!affection[id].checkin) affection[id].checkin = { last: "", streak: 0 }; // 每日簽到 {上次日期, 連續天數}
   if (affection[id].lastBox === undefined) affection[id].lastBox = ""; // 上次開寶箱的日期
+  if (affection[id].lastWheel === undefined) affection[id].lastWheel = ""; // 上次轉轉盤的日期
   if (!affection[id].bank) affection[id].bank = { saved: 0, lastInterest: "" }; // 銀行 {存款, 上次結算利息的日期}
   if (!affection[id].lastSurprise) affection[id].lastSurprise = ""; // 偶像上次回送驚喜的日期(一天最多一次)
   if (!affection[id].chat) affection[id].chat = []; // 聊天訊息 [{who:"idol"/"me", text, time}]
@@ -4727,6 +4736,95 @@ function revealBoxReward(id) {
       <button class="primary-btn" id="boxOk" style="margin-top:16px">收下 🥰</button>
     </div>`;
   $("boxOk").onclick = () => openAffection(id);
+}
+
+/* ================== 🎡 幸運轉盤 ================== */
+// 8 格獎品(固定位置,轉到哪格給哪個)
+const WHEEL_PRIZES = [
+  { label: "💰50", color: "#ffd24d", type: "money", val: 50 },
+  { label: "💕+8", color: "#ff9ec4", type: "love", val: 8 },
+  { label: "💰20", color: "#9be88a", type: "money", val: 20 },
+  { label: "🎁禮物", color: "#a89bff", type: "gift" },
+  { label: "💰100", color: "#ffd24d", type: "money", val: 100 },
+  { label: "🍚食物", color: "#7cc4ff", type: "food" },
+  { label: "💕+15", color: "#ff9ec4", type: "love", val: 15 },
+  { label: "💰30", color: "#9be88a", type: "money", val: 30 }
+];
+let wheelSpinning = false;
+function openWheel(id) {
+  const a = affOf(id);
+  const today = todayStr();
+  if (a.lastWheel === today) { toast("今天已經轉過囉,明天再來 😊"); return; }
+  const idol = idols.find(i => i.id === id);
+  wheelSpinning = false;
+  const n = WHEEL_PRIZES.length;
+  const seg = 360 / n;
+  // 畫轉盤(SVG 圓餅)
+  let slices = "";
+  WHEEL_PRIZES.forEach((p, i) => {
+    const a0 = (i * seg - 90) * Math.PI / 180;
+    const a1 = ((i + 1) * seg - 90) * Math.PI / 180;
+    const x0 = 100 + 95 * Math.cos(a0), y0 = 100 + 95 * Math.sin(a0);
+    const x1 = 100 + 95 * Math.cos(a1), y1 = 100 + 95 * Math.sin(a1);
+    slices += `<path d="M100,100 L${x0.toFixed(1)},${y0.toFixed(1)} A95,95 0 0,1 ${x1.toFixed(1)},${y1.toFixed(1)} Z" fill="${p.color}" stroke="#fff" stroke-width="2"/>`;
+    // 文字
+    const am = ((i + 0.5) * seg - 90) * Math.PI / 180;
+    const tx = 100 + 62 * Math.cos(am), ty = 100 + 62 * Math.sin(am);
+    slices += `<text x="${tx.toFixed(1)}" y="${ty.toFixed(1)}" font-size="13" font-weight="800" fill="#5a4a6a" text-anchor="middle" dominant-baseline="central" transform="rotate(${(i + 0.5) * seg},${tx.toFixed(1)},${ty.toFixed(1)})">${p.label}</text>`;
+  });
+  const area = $("affectionArea");
+  area.innerHTML = `
+    <div class="gift-react">
+      <div class="selfie-head">🎡 ${esc(idol.name)} 的幸運轉盤</div>
+      <div class="wheel-wrap">
+        <div class="wheel-pointer">🔻</div>
+        <svg id="wheelSvg" class="wheel-svg" viewBox="0 0 200 200">${slices}
+          <circle cx="100" cy="100" r="14" fill="#fff" stroke="#ddd" stroke-width="2"/>
+        </svg>
+      </div>
+      <button class="primary-btn" id="wheelSpin" style="width:100%;max-width:300px;margin:14px auto 0;display:block">🎡 轉!</button>
+      <button class="ghost-btn" id="wheelBack" style="width:100%;max-width:300px;margin:8px auto 0;display:block">← 回好感度</button>
+    </div>`;
+  $("wheelSpin").onclick = () => spinWheel(id);
+  $("wheelBack").onclick = () => openAffection(id);
+}
+
+function spinWheel(id) {
+  if (wheelSpinning) return;
+  wheelSpinning = true;
+  const a = affOf(id);
+  const svg = $("wheelSvg");
+  const n = WHEEL_PRIZES.length;
+  const seg = 360 / n;
+  // 隨機選一格
+  const win = Math.floor(Math.random() * n);
+  // 指針在正上方,要讓 win 那格轉到上面:多轉幾圈 + 對準
+  const spins = 5; // 轉5圈
+  const targetDeg = spins * 360 + (360 - (win * seg + seg / 2));
+  svg.style.transition = "transform 3.2s cubic-bezier(.2,.8,.2,1)";
+  svg.style.transform = `rotate(${targetDeg}deg)`;
+  sfx.gacha ? sfx.gacha() : sfx.tap();
+  setTimeout(() => {
+    a.lastWheel = todayStr();
+    const p = WHEEL_PRIZES[win];
+    let rewardText = "", bigIcon = "🎡";
+    if (p.type === "money") { a.coins += p.val; bigIcon = "💰"; rewardText = `💰 +${p.val} 元`; }
+    else if (p.type === "love") { a.points += p.val; bigIcon = "💕"; rewardText = `💕 好感度 +${p.val}`; }
+    else if (p.type === "food") { const f = FOODS[Math.floor(Math.random() * FOODS.length)]; a.bag[f.id] = (a.bag[f.id] || 0) + 1; bigIcon = f.icon; rewardText = `${f.icon} ${f.name} ×1（放進背包）`; }
+    else { const g = GIFTS[Math.floor(Math.random() * GIFTS.length)]; a.giftBag[g.id] = (a.giftBag[g.id] || 0) + 1; bigIcon = g.icon; rewardText = `${g.icon} ${g.name} ×1（放進禮物背包）`; }
+    saveAffection();
+    sfx.win();
+    startConfetti();
+    const area = $("affectionArea");
+    area.innerHTML = `
+      <div class="gift-react">
+        <div class="surprise-badge">🎡 轉到了!</div>
+        <div class="gift-react-stage"><div class="gift-react-emoji" style="font-size:5rem">${bigIcon}</div></div>
+        <div class="surprise-letter"><div class="surprise-letter-money">${esc(rewardText)}</div></div>
+        <button class="primary-btn" id="wheelOk" style="margin-top:16px">收下 🥰</button>
+      </div>`;
+    $("wheelOk").onclick = () => openAffection(id);
+  }, 3300);
 }
 
 /* ================== 💌 偶像回送驚喜 ================== */
@@ -4914,6 +5012,7 @@ function openAffection(id, fromPick) {
   const dailyDone = a.lastDaily === today;
   const checkinDoneToday = a.checkin.last === today; // 今天簽到過了沒
   const boxDoneToday = a.lastBox === today; // 今天開過寶箱沒
+  const wheelDoneToday = a.lastWheel === today; // 今天轉過轉盤沒
   const photo = (idol.gallery && idol.gallery[0]) || idol.photoData || idol.photoUrl;
 
   // 🎁 平常隨機拿著一個送過的禮物(約 40% 機率才出現,像偶爾的驚喜)
@@ -4954,6 +5053,7 @@ function openAffection(id, fromPick) {
     <div style="text-align:center;color:var(--ink-soft);font-weight:700;margin-bottom:10px">💰 ${esc(idol.name)} 的錢包：<b style="color:var(--accent-2)">${a.coins}</b> 元</div>
     <button class="primary-btn" id="affCheckinBtn" style="width:100%;max-width:340px;display:block;margin:0 auto 10px;font-size:1.05rem;padding:14px">${checkinDoneToday ? `✅ 今天簽到過了（連續 ${a.checkin.streak} 天）` : `📅 每日簽到領錢（連續 ${a.checkin.streak} 天）`}</button>
     <button class="primary-btn" id="affBoxBtn" style="width:100%;max-width:340px;display:block;margin:0 auto 10px;font-size:1.05rem;padding:14px">${boxDoneToday ? "✅ 今天開過寶箱了" : "🎁 每日寶箱（開驚喜）"}</button>
+    <button class="primary-btn" id="affWheelBtn" style="width:100%;max-width:340px;display:block;margin:0 auto 10px;font-size:1.05rem;padding:14px">${wheelDoneToday ? "✅ 今天轉過轉盤了" : "🎡 幸運轉盤（轉一轉）"}</button>
     <button class="primary-btn" id="affRpsBtn" style="width:100%;max-width:340px;display:block;margin:0 auto;font-size:1.05rem;padding:14px">🪙 開始猜拳遊戲（贏錢）</button>
     <button class="ghost-btn" id="affShopBtn" style="width:100%;max-width:340px;display:block;margin:10px auto 0;font-size:1.05rem;padding:14px">🛒 去超市買食物</button>
     <button class="ghost-btn" id="affBankBtn" style="width:100%;max-width:340px;display:block;margin:10px auto 0;font-size:1.05rem;padding:14px">🏦 銀行（存錢生利息）</button>
@@ -5087,6 +5187,7 @@ function openAffection(id, fromPick) {
   $("affBankBtn").onclick = () => openBank(id);
   $("affCheckinBtn").onclick = () => dailyCheckin(id);
   $("affBoxBtn").onclick = () => openDailyBox(id);
+  $("affWheelBtn").onclick = () => openWheel(id);
 }
 
 const RPS_HANDS = [
