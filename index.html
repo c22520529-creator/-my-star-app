@@ -4671,25 +4671,49 @@ function idolSurprise(id) {
   const photo = (idol.gallery && idol.gallery[0]) || idol.photoData || idol.photoUrl;
   const msg = SURPRISE_MSGS[Math.floor(Math.random() * SURPRISE_MSGS.length)];
 
-  // 隨機決定送什麼:錢 / 食物 / 禮物 / 好感度
-  const kind = ["money", "food", "gift", "love"][Math.floor(Math.random() * 4)];
+  // 余悸有多少錢能花(零用錢 + 存款)
+  const her = a.allowance + a.bank.saved;
+  // 從余悸的錢扣 cost:先扣零用錢,不夠動存款
+  const paySurprise = (cost) => {
+    let left = cost;
+    const fromAllow = Math.min(a.allowance, left);
+    a.allowance -= fromAllow; left -= fromAllow;
+    if (left > 0) a.bank.saved = Math.max(0, a.bank.saved - left);
+  };
+
+  // 隨機決定送什麼:錢 / 食物 / 禮物 / 好感度(好感度免費,其他要花她的錢)
+  let kind = ["money", "food", "gift", "love"][Math.floor(Math.random() * 4)];
   let bigIcon = "💝", rewardText = "";
+
   if (kind === "money") {
-    const money = [30, 50, 50, 80, 100][Math.floor(Math.random() * 5)];
+    // 送你錢:她有多少給多少(最多100),從她的錢扣
+    const money = Math.min([30, 50, 50, 80, 100][Math.floor(Math.random() * 5)], her);
+    paySurprise(money);
     a.coins += money;
     bigIcon = "💰";
     rewardText = `💰 +${money} 元`;
   } else if (kind === "food") {
     const f = FOODS[Math.floor(Math.random() * FOODS.length)];
-    a.bag[f.id] = (a.bag[f.id] || 0) + 1;
-    bigIcon = f.icon;
-    rewardText = `${f.icon} ${f.name} ×1（放進背包）`;
+    if (f.price > her) { // 買不起就改送好感度
+      kind = "love";
+    } else {
+      paySurprise(f.price);
+      a.bag[f.id] = (a.bag[f.id] || 0) + 1;
+      bigIcon = f.icon;
+      rewardText = `${f.icon} ${f.name} ×1（放進背包）`;
+    }
   } else if (kind === "gift") {
     const g = GIFTS[Math.floor(Math.random() * GIFTS.length)];
-    a.giftBag[g.id] = (a.giftBag[g.id] || 0) + 1;
-    bigIcon = g.icon;
-    rewardText = `${g.icon} ${g.name} ×1（放進禮物背包）`;
-  } else { // love
+    if (g.price > her) { // 買不起就改送好感度
+      kind = "love";
+    } else {
+      paySurprise(g.price);
+      a.giftBag[g.id] = (a.giftBag[g.id] || 0) + 1;
+      bigIcon = g.icon;
+      rewardText = `${g.icon} ${g.name} ×1（放進禮物背包）`;
+    }
+  }
+  if (kind === "love") { // 好感度免費(她的心意,不花錢)
     const love = [5, 8, 10, 12][Math.floor(Math.random() * 4)];
     a.points += love;
     bigIcon = "💕";
@@ -4747,8 +4771,9 @@ function openBank(id) {
     <div class="selfie-head">🏦 ${esc(idol.name)} 的銀行</div>
     <div class="bank-card">
       <div class="bank-row"><span>💰 錢包</span><b id="bankWallet">${a.coins}</b> 元</div>
+      <div class="bank-row"><span>🪙 ${esc(idol.name)} 的零用錢</span><b>${a.allowance}</b> 元</div>
       <div class="bank-row"><span>🏦 存款</span><b id="bankSaved">${a.bank.saved}</b> 元</div>
-      <div class="bank-note">每天利息 5%（每天最多 +100 元）</div>
+      <div class="bank-note">每天利息 5%（每天最多 +100 元）· 零用錢和存款是 ${esc(idol.name)} 送你禮物的錢</div>
       ${gained > 0 ? `<div class="bank-gained">🎉 這次領到利息 +${gained} 元!</div>` : ""}
     </div>
     <div class="bank-input-row">
@@ -5084,7 +5109,8 @@ function openAffection(id, fromPick) {
   const a = affOf(id);
   const today = todayStr();
   // 💌 偶像偶爾回送驚喜:只在「從選單進來」時、一天最多一次、機率 8%
-  if (fromPick && a.lastSurprise !== today && Math.random() < 0.08) {
+  if (fromPick && a.lastSurprise !== today && Math.random() < 0.08
+      && (a.allowance + a.bank.saved) > 0) { // 余悸要有錢(零用錢或存款)才送得起
     a.lastSurprise = today;
     idolSurprise(id);
     return; // 先顯示驚喜畫面,關掉後再進好感度頁
