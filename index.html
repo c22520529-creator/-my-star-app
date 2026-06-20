@@ -4614,6 +4614,7 @@ function affOf(id) {
   if (!affection[id].giftBag) affection[id].giftBag = {}; // 禮物背包 {giftId: 數量}
   if (!affection[id].gaveGifts) affection[id].gaveGifts = []; // 送過的禮物id(他會收藏)
   if (!affection[id].checkin) affection[id].checkin = { last: "", streak: 0 }; // 每日簽到 {上次日期, 連續天數}
+  if (affection[id].lastBox === undefined) affection[id].lastBox = ""; // 上次開寶箱的日期
   if (!affection[id].bank) affection[id].bank = { saved: 0, lastInterest: "" }; // 銀行 {存款, 上次結算利息的日期}
   if (!affection[id].lastSurprise) affection[id].lastSurprise = ""; // 偶像上次回送驚喜的日期(一天最多一次)
   if (!affection[id].chat) affection[id].chat = []; // 聊天訊息 [{who:"idol"/"me", text, time}]
@@ -4652,6 +4653,80 @@ function dailyCheckin(id) {
   startConfetti();
   toast(`📅 簽到成功!連續 ${a.checkin.streak} 天　${esc(idol.name)} +${reward} 元 💰`);
   openAffection(id);
+}
+
+/* ================== 🎁 每日寶箱 ================== */
+function openDailyBox(id) {
+  const a = affOf(id);
+  const today = todayStr();
+  if (a.lastBox === today) { toast("今天已經開過寶箱囉,明天再來 😊"); return; }
+  const idol = idols.find(i => i.id === id);
+  // 顯示一個還沒開的寶箱,點一下開
+  const area = $("affectionArea");
+  area.innerHTML = `
+    <div class="gift-react">
+      <div class="selfie-head">🎁 ${esc(idol.name)} 的每日寶箱</div>
+      <div class="giftbox-wrap" id="boxWrap">
+        <div class="giftbox" id="dailyBox">
+          <div class="giftbox-lid"><div class="giftbox-bow">🎀</div></div>
+          <div class="giftbox-body"><div class="giftbox-face">🎁</div></div>
+        </div>
+        <div class="giftbox-sparkle" id="boxSparkle"></div>
+      </div>
+      <div class="giftbox-hint" id="boxHint">👆 點一下打開寶箱!</div>
+    </div>`;
+  $("boxWrap").onclick = () => {
+    const box = $("dailyBox");
+    if (box.classList.contains("open")) return;
+    box.classList.add("open");
+    sfx.gacha ? sfx.gacha() : sfx.correct();
+    $("boxSparkle").innerHTML = "✨💫⭐✨";
+    $("boxSparkle").classList.add("show");
+    $("boxHint").textContent = "🎉 打開囉!";
+    a.lastBox = today;
+    setTimeout(() => revealBoxReward(id), 700);
+  };
+}
+
+function revealBoxReward(id) {
+  const a = affOf(id);
+  const idol = idols.find(i => i.id === id);
+  // 隨機開出:錢 / 好感度 / 食物 / 禮物
+  const kind = ["money", "love", "food", "gift"][Math.floor(Math.random() * 4)];
+  let bigIcon = "🎁", rewardText = "";
+  if (kind === "money") {
+    const money = [20, 30, 50, 80, 120][Math.floor(Math.random() * 5)];
+    a.coins += money;
+    bigIcon = "💰"; rewardText = `💰 +${money} 元`;
+  } else if (kind === "love") {
+    const love = [5, 8, 10, 15][Math.floor(Math.random() * 4)];
+    a.points += love;
+    bigIcon = "💕"; rewardText = `💕 好感度 +${love}`;
+  } else if (kind === "food") {
+    const f = FOODS[Math.floor(Math.random() * FOODS.length)];
+    a.bag[f.id] = (a.bag[f.id] || 0) + 1;
+    bigIcon = f.icon; rewardText = `${f.icon} ${f.name} ×1（放進背包）`;
+  } else {
+    const g = GIFTS[Math.floor(Math.random() * GIFTS.length)];
+    a.giftBag[g.id] = (a.giftBag[g.id] || 0) + 1;
+    bigIcon = g.icon; rewardText = `${g.icon} ${g.name} ×1（放進禮物背包）`;
+  }
+  saveAffection();
+  sfx.win();
+  startConfetti();
+  const area = $("affectionArea");
+  area.innerHTML = `
+    <div class="gift-react">
+      <div class="surprise-badge">🎁 寶箱開出來了!</div>
+      <div class="gift-react-stage">
+        <div class="gift-react-emoji" style="font-size:5rem">${bigIcon}</div>
+      </div>
+      <div class="surprise-letter">
+        <div class="surprise-letter-money">${esc(rewardText)}</div>
+      </div>
+      <button class="primary-btn" id="boxOk" style="margin-top:16px">收下 🥰</button>
+    </div>`;
+  $("boxOk").onclick = () => openAffection(id);
 }
 
 /* ================== 💌 偶像回送驚喜 ================== */
@@ -4838,6 +4913,7 @@ function openAffection(id, fromPick) {
   const msg = AFF_MSGS[Math.min(lv - 1, AFF_MSGS.length - 1)];
   const dailyDone = a.lastDaily === today;
   const checkinDoneToday = a.checkin.last === today; // 今天簽到過了沒
+  const boxDoneToday = a.lastBox === today; // 今天開過寶箱沒
   const photo = (idol.gallery && idol.gallery[0]) || idol.photoData || idol.photoUrl;
 
   // 🎁 平常隨機拿著一個送過的禮物(約 40% 機率才出現,像偶爾的驚喜)
@@ -4877,6 +4953,7 @@ function openAffection(id, fromPick) {
     <div class="bd-section-title" style="margin-top:20px">賺錢 💰</div>
     <div style="text-align:center;color:var(--ink-soft);font-weight:700;margin-bottom:10px">💰 ${esc(idol.name)} 的錢包：<b style="color:var(--accent-2)">${a.coins}</b> 元</div>
     <button class="primary-btn" id="affCheckinBtn" style="width:100%;max-width:340px;display:block;margin:0 auto 10px;font-size:1.05rem;padding:14px">${checkinDoneToday ? `✅ 今天簽到過了（連續 ${a.checkin.streak} 天）` : `📅 每日簽到領錢（連續 ${a.checkin.streak} 天）`}</button>
+    <button class="primary-btn" id="affBoxBtn" style="width:100%;max-width:340px;display:block;margin:0 auto 10px;font-size:1.05rem;padding:14px">${boxDoneToday ? "✅ 今天開過寶箱了" : "🎁 每日寶箱（開驚喜）"}</button>
     <button class="primary-btn" id="affRpsBtn" style="width:100%;max-width:340px;display:block;margin:0 auto;font-size:1.05rem;padding:14px">🪙 開始猜拳遊戲（贏錢）</button>
     <button class="ghost-btn" id="affShopBtn" style="width:100%;max-width:340px;display:block;margin:10px auto 0;font-size:1.05rem;padding:14px">🛒 去超市買食物</button>
     <button class="ghost-btn" id="affBankBtn" style="width:100%;max-width:340px;display:block;margin:10px auto 0;font-size:1.05rem;padding:14px">🏦 銀行（存錢生利息）</button>
@@ -5009,6 +5086,7 @@ function openAffection(id, fromPick) {
   $("affShopBtn").onclick = () => openShop(id);
   $("affBankBtn").onclick = () => openBank(id);
   $("affCheckinBtn").onclick = () => dailyCheckin(id);
+  $("affBoxBtn").onclick = () => openDailyBox(id);
 }
 
 const RPS_HANDS = [
