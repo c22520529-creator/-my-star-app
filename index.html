@@ -130,6 +130,42 @@
   }
   body.dark .idol-speak-bubble{background:#2e2236;}
   .idol-speak-bubble.show{max-height:100px;opacity:1;padding:10px 12px;animation:judgePop .4s ease;}
+
+  /* ---------- 📸 追星相簿 ---------- */
+  .album-head{font-size:1.3rem;font-weight:900;color:var(--ink);text-align:center;margin:10px 0 14px;}
+  .album-filter{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:16px;}
+  .album-chip{
+    padding:7px 14px;border-radius:999px;border:2px solid #ece2fb;background:var(--card);
+    font-family:inherit;font-weight:700;font-size:.85rem;color:var(--ink);cursor:pointer;
+  }
+  .album-chip.on{background:var(--accent-2);color:#fff;border-color:var(--accent-2);}
+  .album-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;}
+  .album-cell{
+    position:relative;aspect-ratio:1;border-radius:16px;overflow:hidden;cursor:pointer;
+    box-shadow:var(--shadow);background:var(--card);
+  }
+  .album-cell img{width:100%;height:100%;object-fit:cover;transition:.25s;}
+  .album-cell:hover img{transform:scale(1.06);}
+  .album-cell-name{
+    position:absolute;left:0;right:0;bottom:0;padding:8px 10px;
+    background:linear-gradient(transparent,rgba(0,0,0,.6));color:#fff;
+    font-size:.78rem;font-weight:700;
+  }
+  .photo-viewer{
+    position:fixed;inset:0;z-index:500;background:rgba(0,0,0,.88);
+    display:flex;align-items:center;justify-content:center;
+  }
+  .pv-img{max-width:90vw;max-height:80vh;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,.5);}
+  .pv-close{
+    position:absolute;top:18px;right:20px;width:44px;height:44px;border-radius:50%;
+    border:none;background:rgba(255,255,255,.2);color:#fff;font-size:1.4rem;cursor:pointer;
+  }
+  .pv-nav{
+    position:absolute;top:50%;transform:translateY(-50%);width:48px;height:48px;border-radius:50%;
+    border:none;background:rgba(255,255,255,.2);color:#fff;font-size:2rem;cursor:pointer;line-height:1;
+  }
+  .pv-prev{left:14px;} .pv-next{right:14px;}
+  .pv-name{position:absolute;bottom:24px;left:0;right:0;text-align:center;color:#fff;font-weight:700;}
   .idol-card.pinned{outline:2.5px solid var(--gold);outline-offset:-2px;}
   .pin-badge{
     position:absolute;top:-2px;left:8px;z-index:3;font-size:1.1rem;
@@ -1398,6 +1434,7 @@ window.FIREBASE_CONFIG = {
   <div class="tabs">
     <button class="tab active" data-tab="idols">💖 偶像卡片</button>
     <button class="tab" data-tab="posts">✍️ 我的文章</button>
+    <button class="tab" data-tab="album">📸 相簿</button>
     <button class="tab" data-tab="bday">🎂 生日</button>
     <button class="tab" data-tab="game">🎮 遊戲</button>
     <button class="tab" data-tab="settings">⚙️ 設定</button>
@@ -1430,6 +1467,13 @@ window.FIREBASE_CONFIG = {
     </div>
     <div class="filter-row" id="filterRow"></div>
     <div id="postList"></div>
+  </section>
+
+  <!-- 相簿頁 -->
+  <section id="albumTab" style="display:none">
+    <div class="album-head">📸 追星相簿</div>
+    <div class="album-filter" id="albumFilter"></div>
+    <div class="album-grid" id="albumGrid"></div>
   </section>
 
   <!-- 生日頁 -->
@@ -2042,10 +2086,12 @@ document.querySelectorAll(".tab").forEach(btn => {
     if (btn.dataset.tab !== "posts") articleUnlocked = false;
     $("idolsTab").style.display = btn.dataset.tab === "idols" ? "" : "none";
     $("postsTab").style.display = "none"; // 文章分頁交給 tryOpenPosts 決定
+    $("albumTab").style.display = btn.dataset.tab === "album" ? "" : "none";
     $("bdayTab").style.display = btn.dataset.tab === "bday" ? "" : "none";
     $("gameTab").style.display = btn.dataset.tab === "game" ? "" : "none";
     $("settingsTab").style.display = btn.dataset.tab === "settings" ? "" : "none";
     if (btn.dataset.tab === "posts") tryOpenPosts();
+    if (btn.dataset.tab === "album") renderAlbum();
     if (btn.dataset.tab === "bday") { renderCalendar(); renderBdList(); }
     if (btn.dataset.tab === "game") { showGameMenu(); }
   };
@@ -2083,6 +2129,68 @@ function listenBdays() {
     bdays = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     if ($("bdayTab").style.display !== "none") { renderCalendar(); renderBdList(); }
   });
+}
+
+/* ---------- 📸 追星相簿 ---------- */
+let albumFilterId = "all"; // 相簿目前篩選哪位偶像
+function renderAlbum() {
+  const filterEl = $("albumFilter");
+  const grid = $("albumGrid");
+  if (!filterEl || !grid) return;
+  // 篩選列:全部 + 每位偶像
+  let chips = `<button class="album-chip${albumFilterId === "all" ? " on" : ""}" data-af="all">全部</button>`;
+  idols.forEach(idol => {
+    chips += `<button class="album-chip${albumFilterId === idol.id ? " on" : ""}" data-af="${idol.id}">${esc(idol.emoji || "💖")} ${esc(idol.name)}</button>`;
+  });
+  filterEl.innerHTML = chips;
+  filterEl.querySelectorAll("[data-af]").forEach(b => b.onclick = () => { albumFilterId = b.dataset.af; renderAlbum(); });
+
+  // 蒐集照片(主照片 + gallery)
+  const photos = [];
+  idols.forEach(idol => {
+    if (albumFilterId !== "all" && idol.id !== albumFilterId) return;
+    const main = idol.photoData || idol.photoUrl;
+    if (main) photos.push({ src: main, idol });
+    (idol.gallery || []).forEach(src => photos.push({ src, idol }));
+  });
+
+  if (photos.length === 0) {
+    grid.innerHTML = `<div class="empty" style="grid-column:1/-1">還沒有照片~<br>到「💖 偶像卡片」→ ⋯ → 📷 管理照片 上傳吧!</div>`;
+    return;
+  }
+  grid.innerHTML = "";
+  photos.forEach((ph, i) => {
+    const cell = document.createElement("div");
+    cell.className = "album-cell";
+    cell.innerHTML = `<img src="${esc(ph.src)}" alt=""><span class="album-cell-name">${esc(ph.idol.emoji || "")} ${esc(ph.idol.name)}</span>`;
+    cell.onclick = () => openPhotoViewer(photos, i);
+    grid.appendChild(cell);
+  });
+}
+
+// 放大看照片
+function openPhotoViewer(photos, idx) {
+  let cur = idx;
+  let overlay = document.getElementById("photoViewer");
+  if (overlay) overlay.remove();
+  overlay = document.createElement("div");
+  overlay.id = "photoViewer";
+  overlay.className = "photo-viewer";
+  const render = () => {
+    const ph = photos[cur];
+    overlay.innerHTML = `
+      <button class="pv-close" id="pvClose">✕</button>
+      <button class="pv-nav pv-prev" id="pvPrev">‹</button>
+      <img class="pv-img" src="${esc(ph.src)}" alt="">
+      <button class="pv-nav pv-next" id="pvNext">›</button>
+      <div class="pv-name">${esc(ph.idol.emoji || "")} ${esc(ph.idol.name)}　${cur + 1}/${photos.length}</div>`;
+    overlay.querySelector("#pvClose").onclick = () => overlay.remove();
+    overlay.querySelector("#pvPrev").onclick = (e) => { e.stopPropagation(); cur = (cur - 1 + photos.length) % photos.length; render(); };
+    overlay.querySelector("#pvNext").onclick = (e) => { e.stopPropagation(); cur = (cur + 1) % photos.length; render(); };
+  };
+  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+  document.body.appendChild(overlay);
+  render();
 }
 
 /* ---------- 卡片畫面 ---------- */
@@ -2509,6 +2617,7 @@ function openProfile(id) {
   document.querySelectorAll(".tab").forEach(b => b.classList.remove("active"));
   $("idolsTab").style.display = "none";
   $("postsTab").style.display = "none";
+  $("albumTab").style.display = "none";
   $("bdayTab").style.display = "none";
   $("gameTab").style.display = "none";
   $("settingsTab").style.display = "none";
