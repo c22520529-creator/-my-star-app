@@ -199,6 +199,28 @@
   .pick-photo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
   .pick-photo-grid img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;cursor:pointer;transition:.15s;}
   .pick-photo-grid img:hover{transform:scale(1.05);outline:3px solid var(--accent-2);}
+
+  /* ---------- 相簿自由畫布(拖曳排版) ---------- */
+  .album-canvas{
+    position:relative;width:100%;aspect-ratio:3/4;max-width:480px;margin:0 auto;
+    background:linear-gradient(160deg,#fff6fb,#eef4ff);border-radius:16px;
+    box-shadow:var(--shadow);overflow:hidden;
+  }
+  body.dark .album-canvas{background:linear-gradient(160deg,#2a2336,#222a38);}
+  .album-canvas.editing{outline:3px dashed var(--accent-2);outline-offset:-3px;}
+  .album-photo{position:absolute;border-radius:8px;overflow:visible;}
+  .album-photo img{
+    width:100%;display:block;border-radius:8px;border:3px solid #fff;
+    box-shadow:0 3px 10px rgba(0,0,0,.18);
+  }
+  .album-canvas.editing .album-photo img{cursor:grab;}
+  .album-photo.dragging{z-index:50;}
+  .album-photo.dragging img{cursor:grabbing;box-shadow:0 8px 22px rgba(0,0,0,.3);}
+  .album-photo-del{
+    position:absolute;top:-10px;right:-10px;width:28px;height:28px;border-radius:50%;border:none;
+    background:#ff6b8a;color:#fff;cursor:pointer;font-size:.8rem;z-index:3;box-shadow:0 2px 6px rgba(0,0,0,.25);
+  }
+  .album-chip.edit-on{background:#3ec97a;border-color:#3ec97a;color:#fff;}
   .idol-card.pinned{outline:2.5px solid var(--gold);outline-offset:-2px;}
   .pin-badge{
     position:absolute;top:-2px;left:8px;z-index:3;font-size:1.1rem;
@@ -2227,17 +2249,35 @@ function createAlbum() {
 }
 
 // 打開一本相簿(第1步先顯示空的,放照片是第2步)
+// 新照片物件:位置用百分比(x,y是左上角%,w是寬度%)
+function newPhotoObj(src) {
+  return { src, x: 10 + Math.random() * 30, y: 10 + Math.random() * 30, w: 40 };
+}
+// 兼容舊格式(純字串)→ 取出 src
+function photoSrcOf(p) { return typeof p === "string" ? p : p.src; }
+// 兼容舊格式 → 補上位置欄位
+function normPhoto(p, i) {
+  if (typeof p === "string") return { src: p, x: 8 + (i % 3) * 30, y: 8 + Math.floor(i / 3) * 30, w: 40 };
+  if (p.x === undefined) { p.x = 10; p.y = 10; p.w = 40; }
+  return p;
+}
+
+let albumEditMode = false; // 相簿是不是在「編輯排版」模式
+
 function renderAlbumInside(al) {
   const filterEl = $("albumFilter");
   const grid = $("albumGrid");
   if (!al.pages || !al.pages.length) al.pages = [{ photos: [], stickers: [] }];
-  const photos = al.pages[0].photos; // 第2步先用一頁
+  // 把照片都正規化成物件格式(含位置)
+  al.pages[0].photos = al.pages[0].photos.map((p, i) => normPhoto(p, i));
+  const photos = al.pages[0].photos;
   filterEl.innerHTML = `
     <button class="album-chip" id="albumBackShelf">← 回相簿架</button>
     <button class="album-chip on" id="albumRename">✏️ ${esc(al.name)}</button>
-    <button class="album-chip" id="albumAddExisting">🖼️ 加現有照片</button>
-    <button class="album-chip" id="albumImport">📁 匯入新照片</button>`;
-  $("albumBackShelf").onclick = () => { openAlbumId = null; renderAlbum(); };
+    <button class="album-chip" id="albumAddExisting">🖼️ 加照片</button>
+    <button class="album-chip" id="albumImport">📁 匯入</button>
+    <button class="album-chip${albumEditMode ? " edit-on" : ""}" id="albumEdit">${albumEditMode ? "✅ 完成排版" : "🎨 排版"}</button>`;
+  $("albumBackShelf").onclick = () => { albumEditMode = false; openAlbumId = null; renderAlbum(); };
   $("albumRename").onclick = () => {
     const name = prompt("改相簿名字:", al.name);
     if (name === null) return;
@@ -2246,25 +2286,72 @@ function renderAlbumInside(al) {
   };
   $("albumAddExisting").onclick = () => pickExistingPhoto(al);
   $("albumImport").onclick = () => importPhoto(al);
+  $("albumEdit").onclick = () => { albumEditMode = !albumEditMode; if (!albumEditMode) saveAlbums(); renderAlbum(); };
 
   if (photos.length === 0) {
-    grid.innerHTML = `<div class="empty" style="grid-column:1/-1">這本相簿還沒有照片~<br>點上面「🖼️ 加現有照片」或「📁 匯入新照片」📷</div>`;
+    grid.innerHTML = `<div class="empty" style="grid-column:1/-1">這本相簿還沒有照片~<br>點上面「🖼️ 加照片」或「📁 匯入」📷</div>`;
     return;
   }
-  grid.innerHTML = "";
-  photos.forEach((src, i) => {
-    const cell = document.createElement("div");
-    cell.className = "album-cell";
-    cell.innerHTML = `<img src="${esc(src)}" alt="">
-      <button class="album-cell-del" data-delphoto="${i}" title="移除">🗑️</button>`;
-    cell.querySelector("[data-delphoto]").onclick = (e) => {
-      e.stopPropagation();
-      photos.splice(i, 1);
-      saveAlbums(); renderAlbum();
-    };
-    cell.onclick = (e) => { if (!e.target.closest("[data-delphoto]")) openAlbumViewer(photos, i); };
-    grid.appendChild(cell);
+
+  // 自由畫布:照片用絕對位置擺放
+  grid.innerHTML = `<div class="album-canvas${albumEditMode ? " editing" : ""}" id="albumCanvas"></div>`;
+  const canvas = $("albumCanvas");
+  photos.forEach((p, i) => {
+    const el = document.createElement("div");
+    el.className = "album-photo";
+    el.style.left = p.x + "%";
+    el.style.top = p.y + "%";
+    el.style.width = p.w + "%";
+    el.innerHTML = `<img src="${esc(p.src)}" alt="" draggable="false">
+      ${albumEditMode ? `<button class="album-photo-del" data-delphoto="${i}">🗑️</button>` : ""}`;
+    if (albumEditMode) {
+      makePhotoDraggable(el, p, al, canvas);
+      el.querySelector("[data-delphoto]").onclick = (e) => {
+        e.stopPropagation();
+        photos.splice(i, 1);
+        saveAlbums(); renderAlbum();
+      };
+    } else {
+      el.onclick = () => openAlbumViewer(photos.map(photoSrcOf), i);
+    }
+    canvas.appendChild(el);
   });
+}
+
+// 讓照片可以拖曳(滑鼠 + 手指)
+function makePhotoDraggable(el, p, al, canvas) {
+  const onDown = (e) => {
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const pt = e.touches ? e.touches[0] : e;
+    const startX = pt.clientX, startY = pt.clientY;
+    const origX = p.x, origY = p.y;
+    el.classList.add("dragging");
+    const onMove = (ev) => {
+      const mp = ev.touches ? ev.touches[0] : ev;
+      const dx = (mp.clientX - startX) / rect.width * 100;
+      const dy = (mp.clientY - startY) / rect.height * 100;
+      p.x = Math.max(0, Math.min(100 - p.w, origX + dx));
+      p.y = Math.max(0, Math.min(95, origY + dy));
+      el.style.left = p.x + "%";
+      el.style.top = p.y + "%";
+    };
+    const onUp = () => {
+      el.classList.remove("dragging");
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      document.removeEventListener("touchmove", onMove);
+      document.removeEventListener("touchend", onUp);
+      saveAlbums();
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    document.addEventListener("touchmove", onMove, { passive: false });
+    document.addEventListener("touchend", onUp);
+  };
+  const img = el.querySelector("img");
+  img.addEventListener("mousedown", onDown);
+  img.addEventListener("touchstart", onDown, { passive: false });
 }
 
 // 從現有照片(偶像的主照片+相簿)挑一張加進相簿
@@ -2289,7 +2376,7 @@ function pickExistingPhoto(al) {
       <button class="ghost-btn" id="pickPhotoClose" style="width:100%;margin-top:10px">關閉</button>
     </div>`;
   overlay.querySelectorAll("[data-pick]").forEach(img => img.onclick = () => {
-    al.pages[0].photos.push(all[+img.dataset.pick].src);
+    al.pages[0].photos.push(newPhotoObj(all[+img.dataset.pick].src));
     saveAlbums();
     overlay.remove();
     toast("加進相簿了 📸");
@@ -2320,7 +2407,7 @@ function importPhoto(al) {
         cv.width = w; cv.height = h;
         cv.getContext("2d").drawImage(img, 0, 0, w, h);
         const dataUrl = cv.toDataURL("image/jpeg", 0.8);
-        al.pages[0].photos.push(dataUrl);
+        al.pages[0].photos.push(newPhotoObj(dataUrl));
         saveAlbums();
         toast("照片匯入了 📁");
         renderAlbum();
