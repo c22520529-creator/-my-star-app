@@ -166,6 +166,22 @@
   }
   .pv-prev{left:14px;} .pv-next{right:14px;}
   .pv-name{position:absolute;bottom:24px;left:0;right:0;text-align:center;color:#fff;font-weight:700;}
+
+  /* ---------- 相簿書架(很多本) ---------- */
+  .album-book{
+    position:relative;aspect-ratio:.8;border-radius:14px;overflow:hidden;cursor:pointer;
+    box-shadow:var(--shadow);background:var(--card);display:flex;flex-direction:column;
+    border:3px solid #fff;
+  }
+  .album-book-cover{width:100%;flex:1;object-fit:cover;}
+  .album-book-blank{flex:1;display:flex;align-items:center;justify-content:center;font-size:3rem;background:#f3eaff;}
+  body.dark .album-book-blank{background:#2e2640;}
+  .album-book-name{padding:8px;font-weight:800;font-size:.85rem;color:var(--ink);text-align:center;background:var(--card);}
+  .album-book-del{
+    position:absolute;top:6px;right:6px;width:30px;height:30px;border-radius:50%;border:none;
+    background:rgba(255,255,255,.85);cursor:pointer;font-size:.9rem;
+  }
+  body.dark .album-book-del{background:rgba(40,32,60,.85);}
   .idol-card.pinned{outline:2.5px solid var(--gold);outline-offset:-2px;}
   .pin-badge{
     position:absolute;top:-2px;left:8px;z-index:3;font-size:1.1rem;
@@ -2131,66 +2147,84 @@ function listenBdays() {
   });
 }
 
-/* ---------- 📸 追星相簿 ---------- */
-let albumFilterId = "all"; // 相簿目前篩選哪位偶像
+/* ---------- 📸 追星相簿(可開很多本) ---------- */
+let openAlbumId = null; // 目前打開的相簿
+
 function renderAlbum() {
+  // 沒打開任何相簿 → 顯示「所有相簿」列表
+  if (!openAlbumId) { renderAlbumShelf(); return; }
+  const al = albums.find(a => a.id === openAlbumId);
+  if (!al) { openAlbumId = null; renderAlbumShelf(); return; }
+  renderAlbumInside(al);
+}
+
+// 相簿書架:顯示所有相簿本
+function renderAlbumShelf() {
   const filterEl = $("albumFilter");
   const grid = $("albumGrid");
   if (!filterEl || !grid) return;
-  // 篩選列:全部 + 每位偶像
-  let chips = `<button class="album-chip${albumFilterId === "all" ? " on" : ""}" data-af="all">全部</button>`;
-  idols.forEach(idol => {
-    chips += `<button class="album-chip${albumFilterId === idol.id ? " on" : ""}" data-af="${idol.id}">${esc(idol.emoji || "💖")} ${esc(idol.name)}</button>`;
-  });
-  filterEl.innerHTML = chips;
-  filterEl.querySelectorAll("[data-af]").forEach(b => b.onclick = () => { albumFilterId = b.dataset.af; renderAlbum(); });
+  filterEl.innerHTML = `<button class="album-chip on" id="newAlbumBtn">＋ 開一本新相簿</button>`;
+  $("newAlbumBtn").onclick = createAlbum;
 
-  // 蒐集照片(主照片 + gallery)
-  const photos = [];
-  idols.forEach(idol => {
-    if (albumFilterId !== "all" && idol.id !== albumFilterId) return;
-    const main = idol.photoData || idol.photoUrl;
-    if (main) photos.push({ src: main, idol });
-    (idol.gallery || []).forEach(src => photos.push({ src, idol }));
-  });
-
-  if (photos.length === 0) {
-    grid.innerHTML = `<div class="empty" style="grid-column:1/-1">還沒有照片~<br>到「💖 偶像卡片」→ ⋯ → 📷 管理照片 上傳吧!</div>`;
+  if (albums.length === 0) {
+    grid.innerHTML = `<div class="empty" style="grid-column:1/-1">還沒有相簿~<br>點上面「＋ 開一本新相簿」開始吧 📚</div>`;
     return;
   }
   grid.innerHTML = "";
-  photos.forEach((ph, i) => {
+  albums.forEach(al => {
+    // 封面:用相簿第一張照片,沒有就用 📷
+    let cover = "";
+    for (const pg of (al.pages || [])) {
+      if (pg.photos && pg.photos.length) { cover = pg.photos[0].src; break; }
+    }
     const cell = document.createElement("div");
-    cell.className = "album-cell";
-    cell.innerHTML = `<img src="${esc(ph.src)}" alt=""><span class="album-cell-name">${esc(ph.idol.emoji || "")} ${esc(ph.idol.name)}</span>`;
-    cell.onclick = () => openPhotoViewer(photos, i);
+    cell.className = "album-book";
+    cell.innerHTML = `
+      ${cover ? `<img class="album-book-cover" src="${esc(cover)}">` : `<div class="album-book-blank">📷</div>`}
+      <div class="album-book-name">${esc(al.name)}</div>
+      <button class="album-book-del" data-delalbum="${al.id}" title="刪除">🗑️</button>`;
+    cell.onclick = (e) => {
+      if (e.target.closest("[data-delalbum]")) return;
+      openAlbumId = al.id; renderAlbum();
+    };
+    cell.querySelector("[data-delalbum]").onclick = (e) => {
+      e.stopPropagation();
+      if (confirm(`確定刪除相簿「${al.name}」嗎?裡面的照片排版都會消失喔`)) {
+        albums = albums.filter(x => x.id !== al.id);
+        saveAlbums();
+        renderAlbum();
+      }
+    };
     grid.appendChild(cell);
   });
 }
 
-// 放大看照片
-function openPhotoViewer(photos, idx) {
-  let cur = idx;
-  let overlay = document.getElementById("photoViewer");
-  if (overlay) overlay.remove();
-  overlay = document.createElement("div");
-  overlay.id = "photoViewer";
-  overlay.className = "photo-viewer";
-  const render = () => {
-    const ph = photos[cur];
-    overlay.innerHTML = `
-      <button class="pv-close" id="pvClose">✕</button>
-      <button class="pv-nav pv-prev" id="pvPrev">‹</button>
-      <img class="pv-img" src="${esc(ph.src)}" alt="">
-      <button class="pv-nav pv-next" id="pvNext">›</button>
-      <div class="pv-name">${esc(ph.idol.emoji || "")} ${esc(ph.idol.name)}　${cur + 1}/${photos.length}</div>`;
-    overlay.querySelector("#pvClose").onclick = () => overlay.remove();
-    overlay.querySelector("#pvPrev").onclick = (e) => { e.stopPropagation(); cur = (cur - 1 + photos.length) % photos.length; render(); };
-    overlay.querySelector("#pvNext").onclick = (e) => { e.stopPropagation(); cur = (cur + 1) % photos.length; render(); };
+function createAlbum() {
+  const name = prompt("幫新相簿取個名字:", "我的相簿 " + (albums.length + 1));
+  if (name === null) return;
+  const al = { id: "al" + Date.now(), name: name.trim() || "我的相簿", pages: [{ photos: [], stickers: [] }] };
+  albums.push(al);
+  saveAlbums();
+  toast(`開了新相簿「${al.name}」📚`);
+  renderAlbum();
+}
+
+// 打開一本相簿(第1步先顯示空的,放照片是第2步)
+function renderAlbumInside(al) {
+  const filterEl = $("albumFilter");
+  const grid = $("albumGrid");
+  filterEl.innerHTML = `
+    <button class="album-chip" id="albumBackShelf">← 回相簿架</button>
+    <button class="album-chip on" id="albumRename">✏️ ${esc(al.name)}</button>`;
+  $("albumBackShelf").onclick = () => { openAlbumId = null; renderAlbum(); };
+  $("albumRename").onclick = () => {
+    const name = prompt("改相簿名字:", al.name);
+    if (name === null) return;
+    al.name = name.trim() || al.name;
+    saveAlbums(); renderAlbum();
   };
-  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
-  document.body.appendChild(overlay);
-  render();
+  // 第 1 步:裡面先空空的(放照片、排版是後面的步驟)
+  grid.innerHTML = `<div class="empty" style="grid-column:1/-1">這本相簿準備好了 📖<br>（放照片、加裝飾的功能下一步就來囉!）</div>`;
 }
 
 /* ---------- 卡片畫面 ---------- */
@@ -2865,6 +2899,11 @@ $("affectionBack").onclick = showGameMenu;
 
 /* ========== 釘選喜歡的遊戲到最前面 📌 ========== */
 let pinnedGames = []; // 釘選的遊戲 data-game 清單(存在 prefs)
+let albums = []; // 📸 相簿 [{id, name, pages:[{photos:[...], stickers:[...]}]}]
+function saveAlbums() {
+  updateDoc(doc(db, "users", uid, "settings", "prefs"), { albums })
+    .catch(() => setDoc(doc(db, "users", uid, "settings", "prefs"), { albums }, { merge: true }));
+}
 
 function applyPinnedGames() {
   const menu = $("gameMenu");
@@ -7361,6 +7400,7 @@ function listenSettings() {
     fortuneToday = data.fortuneToday || null; // 今天的籤
     fortuneLog = data.fortuneLog || []; // 籤收藏冊
     pinnedGames = data.pinnedGames || []; // 釘選的遊戲
+    albums = data.albums || []; // 相簿 [{id, name, cover, pages:[...]}]
     applyPinnedGames();
     // 好感度:如果剛剛(3秒內)本地才改過,就不要用雲端資料蓋回來
     // (避免送禮/餵食扣掉後,延遲的雲端回寫又把數量補回去的 bug)
