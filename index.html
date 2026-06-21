@@ -182,6 +182,23 @@
     background:rgba(255,255,255,.85);cursor:pointer;font-size:.9rem;
   }
   body.dark .album-book-del{background:rgba(40,32,60,.85);}
+  .album-cell-del{
+    position:absolute;top:6px;right:6px;width:30px;height:30px;border-radius:50%;border:none;
+    background:rgba(255,255,255,.85);cursor:pointer;font-size:.85rem;z-index:2;
+  }
+  body.dark .album-cell-del{background:rgba(40,32,60,.85);}
+  .pick-photo-overlay{
+    position:fixed;inset:0;z-index:520;background:rgba(0,0,0,.6);
+    display:flex;align-items:center;justify-content:center;padding:16px;
+  }
+  .pick-photo-box{
+    background:var(--card);border-radius:18px;padding:18px;max-width:420px;width:100%;
+    max-height:80vh;overflow-y:auto;box-shadow:var(--shadow);
+  }
+  .pick-photo-title{font-weight:800;font-size:1.05rem;margin-bottom:12px;text-align:center;color:var(--ink);}
+  .pick-photo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+  .pick-photo-grid img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;cursor:pointer;transition:.15s;}
+  .pick-photo-grid img:hover{transform:scale(1.05);outline:3px solid var(--accent-2);}
   .idol-card.pinned{outline:2.5px solid var(--gold);outline-offset:-2px;}
   .pin-badge{
     position:absolute;top:-2px;left:8px;z-index:3;font-size:1.1rem;
@@ -2213,9 +2230,13 @@ function createAlbum() {
 function renderAlbumInside(al) {
   const filterEl = $("albumFilter");
   const grid = $("albumGrid");
+  if (!al.pages || !al.pages.length) al.pages = [{ photos: [], stickers: [] }];
+  const photos = al.pages[0].photos; // 第2步先用一頁
   filterEl.innerHTML = `
     <button class="album-chip" id="albumBackShelf">← 回相簿架</button>
-    <button class="album-chip on" id="albumRename">✏️ ${esc(al.name)}</button>`;
+    <button class="album-chip on" id="albumRename">✏️ ${esc(al.name)}</button>
+    <button class="album-chip" id="albumAddExisting">🖼️ 加現有照片</button>
+    <button class="album-chip" id="albumImport">📁 匯入新照片</button>`;
   $("albumBackShelf").onclick = () => { openAlbumId = null; renderAlbum(); };
   $("albumRename").onclick = () => {
     const name = prompt("改相簿名字:", al.name);
@@ -2223,8 +2244,116 @@ function renderAlbumInside(al) {
     al.name = name.trim() || al.name;
     saveAlbums(); renderAlbum();
   };
-  // 第 1 步:裡面先空空的(放照片、排版是後面的步驟)
-  grid.innerHTML = `<div class="empty" style="grid-column:1/-1">這本相簿準備好了 📖<br>（放照片、加裝飾的功能下一步就來囉!）</div>`;
+  $("albumAddExisting").onclick = () => pickExistingPhoto(al);
+  $("albumImport").onclick = () => importPhoto(al);
+
+  if (photos.length === 0) {
+    grid.innerHTML = `<div class="empty" style="grid-column:1/-1">這本相簿還沒有照片~<br>點上面「🖼️ 加現有照片」或「📁 匯入新照片」📷</div>`;
+    return;
+  }
+  grid.innerHTML = "";
+  photos.forEach((src, i) => {
+    const cell = document.createElement("div");
+    cell.className = "album-cell";
+    cell.innerHTML = `<img src="${esc(src)}" alt="">
+      <button class="album-cell-del" data-delphoto="${i}" title="移除">🗑️</button>`;
+    cell.querySelector("[data-delphoto]").onclick = (e) => {
+      e.stopPropagation();
+      photos.splice(i, 1);
+      saveAlbums(); renderAlbum();
+    };
+    cell.onclick = (e) => { if (!e.target.closest("[data-delphoto]")) openAlbumViewer(photos, i); };
+    grid.appendChild(cell);
+  });
+}
+
+// 從現有照片(偶像的主照片+相簿)挑一張加進相簿
+function pickExistingPhoto(al) {
+  const all = [];
+  idols.forEach(idol => {
+    const main = idol.photoData || idol.photoUrl;
+    if (main) all.push({ src: main, name: idol.name });
+    (idol.gallery || []).forEach(src => all.push({ src, name: idol.name }));
+  });
+  if (all.length === 0) { toast("還沒有照片可以選,先到偶像卡片上傳吧 📷"); return; }
+  // 蓋一個選照片的浮層
+  let overlay = document.getElementById("pickPhotoOverlay");
+  if (overlay) overlay.remove();
+  overlay = document.createElement("div");
+  overlay.id = "pickPhotoOverlay";
+  overlay.className = "pick-photo-overlay";
+  overlay.innerHTML = `
+    <div class="pick-photo-box">
+      <div class="pick-photo-title">選照片加進相簿 🖼️</div>
+      <div class="pick-photo-grid">${all.map((p, i) => `<img src="${esc(p.src)}" data-pick="${i}">`).join("")}</div>
+      <button class="ghost-btn" id="pickPhotoClose" style="width:100%;margin-top:10px">關閉</button>
+    </div>`;
+  overlay.querySelectorAll("[data-pick]").forEach(img => img.onclick = () => {
+    al.pages[0].photos.push(all[+img.dataset.pick].src);
+    saveAlbums();
+    overlay.remove();
+    toast("加進相簿了 📸");
+    renderAlbum();
+  });
+  overlay.querySelector("#pickPhotoClose").onclick = () => overlay.remove();
+  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+  document.body.appendChild(overlay);
+}
+
+// 從裝置匯入新照片
+function importPhoto(al) {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "image/*";
+  input.onchange = () => {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      // 壓縮一下(避免太大存不進雲端)
+      const img = new Image();
+      img.onload = () => {
+        const max = 900;
+        let w = img.width, h = img.height;
+        if (w > max || h > max) { const r = Math.min(max / w, max / h); w = Math.round(w * r); h = Math.round(h * r); }
+        const cv = document.createElement("canvas");
+        cv.width = w; cv.height = h;
+        cv.getContext("2d").drawImage(img, 0, 0, w, h);
+        const dataUrl = cv.toDataURL("image/jpeg", 0.8);
+        al.pages[0].photos.push(dataUrl);
+        saveAlbums();
+        toast("照片匯入了 📁");
+        renderAlbum();
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  };
+  input.click();
+}
+
+// 相簿裡放大看照片
+function openAlbumViewer(photos, idx) {
+  let cur = idx;
+  let overlay = document.getElementById("photoViewer");
+  if (overlay) overlay.remove();
+  overlay = document.createElement("div");
+  overlay.id = "photoViewer";
+  overlay.className = "photo-viewer";
+  const render = () => {
+    overlay.innerHTML = `
+      <button class="pv-close" id="pvClose">✕</button>
+      <button class="pv-nav pv-prev" id="pvPrev">‹</button>
+      <img class="pv-img" src="${esc(photos[cur])}" alt="">
+      <button class="pv-nav pv-next" id="pvNext">›</button>
+      <div class="pv-name">${cur + 1}/${photos.length}</div>`;
+    overlay.querySelector("#pvClose").onclick = () => overlay.remove();
+    overlay.querySelector("#pvPrev").onclick = (e) => { e.stopPropagation(); cur = (cur - 1 + photos.length) % photos.length; render(); };
+    overlay.querySelector("#pvNext").onclick = (e) => { e.stopPropagation(); cur = (cur + 1) % photos.length; render(); };
+  };
+  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+  document.body.appendChild(overlay);
+  render();
 }
 
 /* ---------- 卡片畫面 ---------- */
