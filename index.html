@@ -1541,7 +1541,6 @@ window.FIREBASE_CONFIG = {
   <div class="tabs">
     <button class="tab active" data-tab="idols">💖 偶像卡片</button>
     <button class="tab" data-tab="posts">✍️ 我的文章</button>
-    <button class="tab" data-tab="me">👤 我</button>
     <button class="tab" data-tab="bday">🎂 生日</button>
     <button class="tab" data-tab="game">🎮 遊戲</button>
     <button class="tab" data-tab="settings">⚙️ 設定</button>
@@ -1574,11 +1573,6 @@ window.FIREBASE_CONFIG = {
     </div>
     <div class="filter-row" id="filterRow"></div>
     <div id="postList"></div>
-  </section>
-
-  <!-- 我的個人資料頁 -->
-  <section id="meTab" style="display:none">
-    <div class="me-wrap" id="meWrap"></div>
   </section>
 
   <!-- 生日頁 -->
@@ -2189,12 +2183,10 @@ document.querySelectorAll(".tab").forEach(btn => {
     if (btn.dataset.tab !== "posts") articleUnlocked = false;
     $("idolsTab").style.display = btn.dataset.tab === "idols" ? "" : "none";
     $("postsTab").style.display = "none"; // 文章分頁交給 tryOpenPosts 決定
-    $("meTab").style.display = btn.dataset.tab === "me" ? "" : "none";
     $("bdayTab").style.display = btn.dataset.tab === "bday" ? "" : "none";
     $("gameTab").style.display = btn.dataset.tab === "game" ? "" : "none";
     $("settingsTab").style.display = btn.dataset.tab === "settings" ? "" : "none";
     if (btn.dataset.tab === "posts") tryOpenPosts();
-    if (btn.dataset.tab === "me") renderMe();
     if (btn.dataset.tab === "bday") { renderCalendar(); renderBdList(); }
     if (btn.dataset.tab === "game") { showGameMenu(); }
   };
@@ -2232,57 +2224,6 @@ function listenBdays() {
     bdays = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     if ($("bdayTab").style.display !== "none") { renderCalendar(); renderBdList(); }
   });
-}
-
-/* ---------- 👤 我的個人資料 ---------- */
-function renderMe() {
-  const wrap = $("meWrap");
-  if (!wrap) return;
-  const p = myProfile;
-  const display = p.nick || p.name || "（還沒設定）";
-  wrap.innerHTML = `
-    <div class="me-card">
-      <div class="me-photo-wrap">
-        ${p.photo ? `<img class="me-photo" src="${esc(p.photo)}" alt="">` : `<div class="me-photo-blank">👤</div>`}
-      </div>
-      <div class="me-display-name">${esc(display)}</div>
-      ${p.name && p.nick ? `<div class="me-realname">${esc(p.name)}</div>` : ""}
-    </div>
-    <div class="me-form">
-      <button class="primary-btn" id="meUpload" style="width:100%;margin-bottom:12px">🖼️ 換頭像</button>
-      <label class="me-label">名字</label>
-      <input class="me-input" id="meName" placeholder="你的名字" value="${esc(p.name)}">
-      <label class="me-label">暱稱</label>
-      <input class="me-input" id="meNick" placeholder="想被叫的暱稱" value="${esc(p.nick)}">
-      <button class="primary-btn" id="meSave" style="width:100%;margin-top:14px">💾 儲存</button>
-    </div>`;
-  $("meUpload").onclick = () => {
-    const input = document.createElement("input");
-    input.type = "file"; input.accept = "image/*";
-    input.onchange = () => {
-      const file = input.files[0]; if (!file) return;
-      const reader = new FileReader();
-      reader.onload = () => {
-        const img = new Image();
-        img.onload = () => {
-          const max = 400; let w = img.width, h = img.height;
-          if (w > max || h > max) { const r = Math.min(max / w, max / h); w = Math.round(w * r); h = Math.round(h * r); }
-          const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
-          cv.getContext("2d").drawImage(img, 0, 0, w, h);
-          myProfile.photo = cv.toDataURL("image/jpeg", 0.8);
-          saveMyProfile(); renderMe(); toast("頭像換好了 🖼️");
-        };
-        img.src = reader.result;
-      };
-      reader.readAsDataURL(file);
-    };
-    input.click();
-  };
-  $("meSave").onclick = () => {
-    myProfile.name = $("meName").value.trim();
-    myProfile.nick = $("meNick").value.trim();
-    saveMyProfile(); renderMe(); sfx.correct(); toast("儲存好了 💾");
-  };
 }
 
 /* ---------- 卡片畫面 ---------- */
@@ -2709,7 +2650,6 @@ function openProfile(id) {
   document.querySelectorAll(".tab").forEach(b => b.classList.remove("active"));
   $("idolsTab").style.display = "none";
   $("postsTab").style.display = "none";
-  $("meTab").style.display = "none";
   $("bdayTab").style.display = "none";
   $("gameTab").style.display = "none";
   $("settingsTab").style.display = "none";
@@ -2957,11 +2897,6 @@ $("affectionBack").onclick = showGameMenu;
 
 /* ========== 釘選喜歡的遊戲到最前面 📌 ========== */
 let pinnedGames = []; // 釘選的遊戲 data-game 清單(存在 prefs)
-let myProfile = { photo: "", name: "", nick: "" }; // 👤 玩家個人資料
-function saveMyProfile() {
-  updateDoc(doc(db, "users", uid, "settings", "prefs"), { myProfile })
-    .catch(() => setDoc(doc(db, "users", uid, "settings", "prefs"), { myProfile }, { merge: true }));
-}
 
 function applyPinnedGames() {
   const menu = $("gameMenu");
@@ -7641,7 +7576,6 @@ function listenSettings() {
     fortuneToday = data.fortuneToday || null; // 今天的籤
     fortuneLog = data.fortuneLog || []; // 籤收藏冊
     pinnedGames = data.pinnedGames || []; // 釘選的遊戲
-    myProfile = data.myProfile || { photo: "", name: "", nick: "" }; // 玩家個人資料
     applyPinnedGames();
     // 好感度:如果剛剛(3秒內)本地才改過,就不要用雲端資料蓋回來
     // (避免送禮/餵食扣掉後,延遲的雲端回寫又把數量補回去的 bug)
