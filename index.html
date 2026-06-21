@@ -2214,7 +2214,7 @@ function renderAlbumShelf() {
     // 封面:用相簿第一張照片,沒有就用 📷
     let cover = "";
     for (const pg of (al.pages || [])) {
-      if (pg.photos && pg.photos.length) { cover = pg.photos[0].src; break; }
+      if (pg.photos && pg.photos.length) { const f = pg.photos[0]; cover = typeof f === "string" ? f : f.src; break; }
     }
     const cell = document.createElement("div");
     cell.className = "album-book";
@@ -2305,12 +2305,14 @@ function renderAlbumInside(al) {
     el.innerHTML = `<img src="${esc(p.src)}" alt="" draggable="false">
       ${albumEditMode ? `<button class="album-photo-del" data-delphoto="${i}">🗑️</button>` : ""}`;
     if (albumEditMode) {
-      makePhotoDraggable(el, p, al, canvas);
-      el.querySelector("[data-delphoto]").onclick = (e) => {
+      const delBtn = el.querySelector("[data-delphoto]");
+      delBtn.onclick = (e) => {
         e.stopPropagation();
         photos.splice(i, 1);
         saveAlbums(); renderAlbum();
       };
+      delBtn.addEventListener("touchstart", (e) => { e.stopPropagation(); }, { passive: true });
+      makePhotoDraggable(el, p, al, canvas, delBtn);
     } else {
       el.onclick = () => openAlbumViewer(photos.map(photoSrcOf), i);
     }
@@ -2318,9 +2320,10 @@ function renderAlbumInside(al) {
   });
 }
 
-// 讓照片可以拖曳(滑鼠 + 手指)
-function makePhotoDraggable(el, p, al, canvas) {
+// 讓照片可以拖曳(滑鼠 + 手指),綁在整個照片框上
+function makePhotoDraggable(el, p, al, canvas, delBtn) {
   const onDown = (e) => {
+    if (delBtn && e.target === delBtn) return; // 點刪除鈕不算拖曳
     e.preventDefault();
     const rect = canvas.getBoundingClientRect();
     const pt = e.touches ? e.touches[0] : e;
@@ -2349,9 +2352,8 @@ function makePhotoDraggable(el, p, al, canvas) {
     document.addEventListener("touchmove", onMove, { passive: false });
     document.addEventListener("touchend", onUp);
   };
-  const img = el.querySelector("img");
-  img.addEventListener("mousedown", onDown);
-  img.addEventListener("touchstart", onDown, { passive: false });
+  el.addEventListener("mousedown", onDown);
+  el.addEventListener("touchstart", onDown, { passive: false });
 }
 
 // 從現有照片(偶像的主照片+相簿)挑一張加進相簿
