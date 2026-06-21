@@ -685,6 +685,23 @@
     border:4px solid #ffb3d1;border-radius:22px;box-shadow:var(--shadow);
     padding:22px;text-align:center;
   }
+  /* 偶像卡片 + 左右小圓鈕 */
+  .aff-top-row{
+    display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:16px;
+  }
+  .aff-top-row .aff-card{margin:0;flex:0 1 340px;}
+  .aff-rail{display:flex;flex-direction:column;gap:10px;flex-shrink:0;}
+  .aff-quick{
+    width:46px;height:46px;border-radius:50%;border:none;cursor:pointer;
+    font-size:1.4rem;background:var(--card);box-shadow:var(--shadow);
+    display:flex;align-items:center;justify-content:center;transition:.15s;
+  }
+  .aff-quick:hover{transform:scale(1.12);background:#fff0f6;}
+  body.dark .aff-quick:hover{background:#2e2236;}
+  @media(max-width:430px){
+    .aff-quick{width:40px;height:40px;font-size:1.2rem;}
+    .aff-top-row{gap:4px;}
+  }
   .aff-photo{width:90px;height:90px;border-radius:50%;object-fit:cover;margin-bottom:12px;}
   .aff-photo-wrap{position:relative;display:inline-block;}
   .aff-held{
@@ -4489,7 +4506,7 @@ function drawFortuneBook() {
 
 /* ================== 好感度養成 💌 ================== */
 // 每一級需要的好感度(累積),等級小語
-const AFF_LEVEL_STEP = 50; // 每 50 點升一級
+const AFF_LEVEL_STEP = 100; // 每 100 點升一級
 const RPS_DAILY = 5;       // 每天可玩幾場猜拳
 const AFF_MSGS = [
   "你們的故事才剛開始 🌱",          // Lv.1
@@ -5160,16 +5177,30 @@ function openAffection(id, fromPick) {
 
   const area = $("affectionArea");
   area.innerHTML = `
-    <div class="aff-card" style="border-color:${esc(idol.color || "#ffb3d1")}">
-      <div class="aff-photo-wrap">
-        ${photo ? `<img class="aff-photo" src="${esc(photo)}" alt="">` : `<div class="aff-emoji">${esc(idol.emoji || "💖")}</div>`}
-        ${heldGift ? `<div class="aff-held" title="他收藏著你送的${esc(heldGift.name)}">${heldGift.icon}</div>` : ""}
+    <div class="aff-top-row">
+      <div class="aff-rail aff-rail-left">
+        <button class="aff-quick" data-quick="shop" title="超市">🛒</button>
+        <button class="aff-quick" data-quick="bank" title="銀行">🏦</button>
+        <button class="aff-quick" data-quick="box" title="寶箱">🎁</button>
+        <button class="aff-quick" data-quick="wheel" title="轉盤">🎡</button>
       </div>
-      <div class="aff-name">${esc(idol.emoji || "")} ${esc(idol.name)}　<b>Lv.${lv}</b></div>
-      <div class="aff-bar"><div class="aff-bar-fill" style="width:${pct}%;background:${esc(idol.color || "#ff7eb6")}"></div></div>
-      <div class="aff-bar-txt">好感度 ${inLevel}/${AFF_LEVEL_STEP}（總 ${a.points}）</div>
-      ${heldGift ? `<div class="aff-held-msg">${heldGift.icon} ${esc(heldMsg)}</div>` : ""}
-      <div class="aff-msg">「${esc(msg)}」</div>
+      <div class="aff-card" style="border-color:${esc(idol.color || "#ffb3d1")}">
+        <div class="aff-photo-wrap">
+          ${photo ? `<img class="aff-photo" src="${esc(photo)}" alt="">` : `<div class="aff-emoji">${esc(idol.emoji || "💖")}</div>`}
+          ${heldGift ? `<div class="aff-held" title="他收藏著你送的${esc(heldGift.name)}">${heldGift.icon}</div>` : ""}
+        </div>
+        <div class="aff-name">${esc(idol.emoji || "")} ${esc(idol.name)}　<b>Lv.${lv}</b></div>
+        <div class="aff-bar"><div class="aff-bar-fill" style="width:${pct}%;background:${esc(idol.color || "#ff7eb6")}"></div></div>
+        <div class="aff-bar-txt">好感度 ${inLevel}/${AFF_LEVEL_STEP}（總 ${a.points}）</div>
+        ${heldGift ? `<div class="aff-held-msg">${heldGift.icon} ${esc(heldMsg)}</div>` : ""}
+        <div class="aff-msg">「${esc(msg)}」</div>
+      </div>
+      <div class="aff-rail aff-rail-right">
+        <button class="aff-quick" data-quick="checkin" title="簽到">📅</button>
+        <button class="aff-quick" data-quick="rps" title="猜拳">🪙</button>
+        <button class="aff-quick" data-quick="inter" title="互動">💕</button>
+        <button class="aff-quick" data-quick="pet" title="寵物">🐾</button>
+      </div>
     </div>
 
     <button class="primary-btn aff-daily-btn" id="affDaily" ${dailyDone ? "disabled" : ""}>
@@ -5196,7 +5227,7 @@ function openAffection(id, fromPick) {
     <details class="aff-tool">
       <summary>🔧 手動調整好感度</summary>
       <div class="aff-tool-body">
-        <div class="setting-desc" style="margin-bottom:8px">直接設定 ${esc(idol.name)} 的好感度數字（每 50 分升一級，例如 Lv.5 = 250分）</div>
+        <div class="setting-desc" style="margin-bottom:8px">直接設定 ${esc(idol.name)} 的好感度數字（每 100 分升一級，例如 Lv.5 = 500分）</div>
         <div style="display:flex;gap:8px;justify-content:center;align-items:center">
           <input type="number" id="affSetInput" value="${a.points}" min="0" style="width:90px;padding:8px;border-radius:10px;border:2px solid #ece2fb;text-align:center;font-size:1rem;font-family:inherit">
           <button class="primary-btn" id="affSetBtn" style="padding:8px 18px">設定</button>
@@ -5214,6 +5245,21 @@ function openAffection(id, fromPick) {
     toast("應援 +5 好感度 💕");
   };
   $("affBackPick").onclick = setupAffection;
+  // 左右小圓鈕快捷
+  area.querySelectorAll("[data-quick]").forEach(b => b.onclick = () => {
+    const q = b.dataset.quick;
+    if (q === "shop") openShop(id);
+    else if (q === "bank") openBank(id);
+    else if (q === "box") openDailyBox(id);
+    else if (q === "wheel") openWheel(id);
+    else if (q === "checkin") dailyCheckin(id);
+    else if (q === "rps") openRpsGame(id);
+    else if (q === "pet") openPet(id);
+    else if (q === "inter") {
+      const d = area.querySelector("details.aff-inter-box");
+      if (d) { d.open = true; d.scrollIntoView({ behavior: "smooth", block: "center" }); }
+    }
+  });
   $("affSetBtn").onclick = () => {
     const v = Math.max(0, parseInt($("affSetInput").value, 10) || 0);
     a.points = v;
