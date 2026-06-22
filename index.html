@@ -4803,6 +4803,7 @@ function affOf(id) {
   if (!affection[id].chat) affection[id].chat = []; // 聊天訊息 [{who:"idol"/"me", text, time}]
   if (affection[id].craving === undefined) affection[id].craving = null; // 她現在想要的東西 {type:"food"/"gift", fid}
   if (!affection[id].msgs) affection[id].msgs = []; // 偶像傳來的訊息 [{text, time, kind}]
+  if (affection[id].lastWant === undefined) affection[id].lastWant = ""; // 上次討東西的日期(一天最多討一次)
   // 換日就清空今天的任務勾選 + 互動紀錄 + 猜拳場數
   const t = todayStr();
   if (affection[id].tasks.date !== t) affection[id].tasks = { date: t, done: [] };
@@ -5243,16 +5244,38 @@ function openMsgList() {
   $("msgListBack").onclick = openPhone;
 }
 
+// 偶像平常的閒聊(不花錢)
+const IDOL_CHAT = [
+  "今天有想我嗎?💕", "好想見到你喔 🥰", "你是我最棒的粉絲 ✨", "謝謝你一直支持我 🥹",
+  "今天心情超好的!😄", "跟你在一起好開心 🎶", "有你真好 💗", "想跟你說聲嗨~👋",
+  "今天天氣不錯呢 ☀️", "我會一直加油的!💪", "你今天過得好嗎?😊", "想你想到睡不著 💭"
+];
+
 // 看某位偶像傳的訊息
 function openMsgChat(id) {
   const a = affOf(id);
-  const idol = idols.find(i => i.id === id);
-  // 進來時,如果她現在沒有「想要的東西」,就讓她討一個(傳訊息)
-  if (!a.craving) {
+  const today = todayStr();
+  // 規則:① 還有沒滿足的願望 → 不再討,也不亂講
+  //      ② 今天還沒討過 → 有 40% 機率討一個(然後今天就不再討);否則閒聊
+  //      ③ 今天討過了 → 只閒聊
+  if (a.craving) {
+    // 已經有想要的還沒給 → 不傳新訊息(避免一直催)
+  } else if (a.lastWant !== today && Math.random() < 0.4) {
+    // 今天第一次,而且抽中要討東西
+    a.lastWant = today;
     const text = pickCraving(id);
     a.msgs.push({ text, time: Date.now(), kind: "want" });
     if (a.msgs.length > 100) a.msgs = a.msgs.slice(-100);
     saveAffection();
+  } else {
+    // 閒聊(不花錢);但避免連續重複,最多偶爾加一句
+    const last = a.msgs[a.msgs.length - 1];
+    if (!last || last.kind !== "chat" || Math.random() < 0.5) {
+      const text = IDOL_CHAT[Math.floor(Math.random() * IDOL_CHAT.length)];
+      a.msgs.push({ text, time: Date.now(), kind: "chat" });
+      if (a.msgs.length > 100) a.msgs = a.msgs.slice(-100);
+      saveAffection();
+    }
   }
   renderMsgChat(id);
 }
