@@ -5281,14 +5281,20 @@ function openMsgChat(id) {
   renderMsgChat(id);
 }
 
+let msgSpeaker = "me"; // 自訂對話時,目前是誰在說
 function renderMsgChat(id) {
   const a = affOf(id);
   const idol = idols.find(i => i.id === id);
   const photo = (idol.gallery && idol.gallery[0]) || idol.photoData || idol.photoUrl;
-  const bubbles = a.msgs.map(m => `<div class="chat-line left">
+  const bubbles = a.msgs.map(m => {
+    if (m.who === "me") {
+      return `<div class="chat-line right"><div class="chat-bubble me">${esc(m.text)}</div></div>`;
+    }
+    return `<div class="chat-line left">
       ${photo ? `<img class="chat-avatar" src="${esc(photo)}">` : `<span class="chat-avatar-emoji">${esc(idol.emoji || "💖")}</span>`}
       <div class="chat-bubble idol">${esc(m.text)}</div>
-    </div>`).join("");
+    </div>`;
+  }).join("");
   const area = $("affectionArea");
   // 顯示她現在想要什麼的提示
   let wantTip = "";
@@ -5301,9 +5307,41 @@ function renderMsgChat(id) {
       <div class="phone-top"><span class="phone-time">💬 ${esc(idol.emoji || "")} ${esc(idol.name)}</span></div>
       <div class="chat-window" id="chatWindow">${bubbles || `<div class="chat-empty">還沒有訊息 💬</div>`}</div>
       ${wantTip}
-      <button class="phone-home-btn" id="msgChatBack">← 回訊息</button>
+      <div class="chat-speaker-row">
+        <span class="chat-speaker-label">這句是誰說:</span>
+        <button class="chat-speaker-btn ${msgSpeaker === "me" ? "on" : ""}" id="spkMe">我</button>
+        <button class="chat-speaker-btn ${msgSpeaker === "idol" ? "on" : ""}" id="spkIdol">${esc(idol.name)}</button>
+      </div>
+      <div class="chat-input-row">
+        <input type="text" id="msgInput" placeholder="自己排對話...">
+        <button class="chat-send" id="msgSend">送出</button>
+      </div>
+      <div class="draw-btns" style="margin-top:8px">
+        <button class="ghost-btn" id="msgClear">🗑️ 清空訊息</button>
+        <button class="ghost-btn" id="msgChatBack">← 回訊息</button>
+      </div>
     </div>`;
   const win = $("chatWindow"); if (win) win.scrollTop = win.scrollHeight;
+  $("spkMe").onclick = () => { msgSpeaker = "me"; renderMsgChat(id); };
+  $("spkIdol").onclick = () => { msgSpeaker = "idol"; renderMsgChat(id); };
+  const send = () => {
+    const t = $("msgInput").value.trim();
+    if (!t) return;
+    a.msgs.push({ text: t, time: Date.now(), kind: "custom", who: msgSpeaker });
+    if (a.msgs.length > 100) a.msgs = a.msgs.slice(-100);
+    saveAffection(); sfx.tap && sfx.tap();
+    renderMsgChat(id);
+  };
+  $("msgSend").onclick = send;
+  $("msgInput").addEventListener("keydown", e => { if (e.key === "Enter") send(); });
+  $("msgClear").onclick = () => {
+    if (confirm(`確定清空跟 ${idol.name} 的所有訊息嗎?`)) {
+      a.msgs = [];
+      a.craving = null;
+      saveAffection();
+      renderMsgChat(id);
+    }
+  };
   $("msgChatBack").onclick = openMsgList;
 }
 
