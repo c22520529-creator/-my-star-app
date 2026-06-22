@@ -5255,22 +5255,23 @@ const IDOL_CHAT = [
 function openMsgChat(id) {
   const a = affOf(id);
   const today = todayStr();
-  // 規則:① 還有沒滿足的願望 → 不再討,也不亂講
-  //      ② 今天還沒討過 → 有 40% 機率討一個(然後今天就不再討);否則閒聊
+  // 願望過期:如果上次討東西不是今天,舊願望就算了(不再一直卡著討)
+  if (a.craving && a.lastWant !== today) a.craving = null;
+  // 規則:① 還有「今天剛討、還沒給」的願望 → 不再傳新訊息
+  //      ② 今天還沒討過 → 有 35% 機率討一個;否則閒聊
   //      ③ 今天討過了 → 只閒聊
-  if (a.craving) {
-    // 已經有想要的還沒給 → 不傳新訊息(避免一直催)
-  } else if (a.lastWant !== today && Math.random() < 0.4) {
-    // 今天第一次,而且抽中要討東西
+  if (a.craving && a.lastWant === today) {
+    // 今天討的願望還沒給 → 不再催,也不重複加訊息
+  } else if (a.lastWant !== today && Math.random() < 0.35) {
     a.lastWant = today;
     const text = pickCraving(id);
     a.msgs.push({ text, time: Date.now(), kind: "want" });
     if (a.msgs.length > 100) a.msgs = a.msgs.slice(-100);
     saveAffection();
   } else {
-    // 閒聊(不花錢);但避免連續重複,最多偶爾加一句
+    // 閒聊(不花錢);避免連續重複同一則
     const last = a.msgs[a.msgs.length - 1];
-    if (!last || last.kind !== "chat" || Math.random() < 0.5) {
+    if (!last || last.kind !== "chat") {
       const text = IDOL_CHAT[Math.floor(Math.random() * IDOL_CHAT.length)];
       a.msgs.push({ text, time: Date.now(), kind: "chat" });
       if (a.msgs.length > 100) a.msgs = a.msgs.slice(-100);
